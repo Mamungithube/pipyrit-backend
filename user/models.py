@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 
 """=========================Custom User Manager========================="""
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -19,8 +21,10 @@ class UserManager(BaseUserManager):
 
 
 """=========================Custom User Model========================="""
+
+
 class User(AbstractUser):
-    username = None # ইমেইল দিয়ে লগইন হবে তাই ইউজারনেম বাদ
+    username = None  # ইমেইল দিয়ে লগইন হবে তাই ইউজারনেম বাদ
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100)
 
@@ -34,6 +38,8 @@ class User(AbstractUser):
 
 
 """=========================Profile Model========================="""
+
+
 class Profile(models.Model):
     LANGUAGE_CHOICES = (
         ('en', 'English'),
@@ -46,9 +52,10 @@ class Profile(models.Model):
     otp_created_at = models.DateTimeField(blank=True, null=True)
     profile_picture = models.ImageField(
         upload_to='profiles/', blank=True, null=True)
-    
+
     # অ্যাপের ফিচারের জন্য লজিক্যাল ফিল্ডস
-    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
+    language = models.CharField(
+        max_length=10, choices=LANGUAGE_CHOICES, default='en')
     total_points = models.IntegerField(default=0)
     confidence_level = models.IntegerField(default=0)
     is_verified = models.BooleanField(default=False)
@@ -58,10 +65,12 @@ class Profile(models.Model):
 
 
 """=========================Notification Model========================="""
+
+
 class Notification(models.Model):
     NOTIFICATION_TYPES = (
-        ('case_update', 'Case Update'),        
-        ('quiz_reminder', 'Quiz Reminder'), 
+        ('case_update', 'Case Update'),
+        ('quiz_reminder', 'Quiz Reminder'),
         ('subscription_alert', 'Subscription Alert'),
         ('system_update', 'System Update'),
     )

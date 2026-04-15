@@ -10,8 +10,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta
 
 from .models import User, Profile
-from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer
+from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer
 from .utils import generate_otp
+from drf_yasg.utils import swagger_auto_schema
 
 def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
     """
@@ -26,9 +27,12 @@ def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
     }, status=status_code)
 
 # Register View
+
+
 class RegisterApiView(generics.GenericAPIView):
     serializer_class = RegistrationSerializer
     permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['1. Authentication'])
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -40,12 +44,12 @@ class RegisterApiView(generics.GenericAPIView):
         try:
             user = serializer.save()
             profile, created = Profile.objects.get_or_create(user=user)
-            
+
             otp_code = generate_otp()
             profile.otp = otp_code
             profile.otp_created_at = timezone.now()
             profile.save()
-            
+
             # ইমেইল লজিক
             try:
                 msg = EmailMessage(
@@ -58,16 +62,19 @@ class RegisterApiView(generics.GenericAPIView):
             except Exception as e:
                 # ইমেইল না গেলেও যেন ইউজারকে জানানো হয় সিস্টেমের সমস্যা
                 return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email}, status.HTTP_201_CREATED)
-            
+
             return api_response(True, "Verification code sent to your email.", {"email": user.email}, status.HTTP_201_CREATED)
-            
+
         except Exception as e:
             return api_response(False, "Internal server error during registration.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Verify OTP View
+
+
 class VerifyOTPApiView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
     permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['1. Authentication'])
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -77,13 +84,13 @@ class VerifyOTPApiView(generics.GenericAPIView):
 
         email = serializer.validated_data['email']
         otp = serializer.validated_data['otp']
-        
+
         user = User.objects.filter(email=email).first()
         if not user:
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
-        
+
         profile = user.profile
-        
+
         # ওটিপি চেক করার আগে চেক করা যে ওটিপি আদৌ জেনারেট হয়েছে কি না
         if not profile.otp:
             return api_response(False, "No active OTP found. Please request a new one.", None, status.HTTP_400_BAD_REQUEST)
@@ -98,16 +105,19 @@ class VerifyOTPApiView(generics.GenericAPIView):
             user.is_active = True
             user.save()
             profile.is_verified = True
-            profile.otp = None # ভেরিফাই হয়ে গেলে ওটিপি ক্লিয়ার করে দেওয়া সিকিউর
+            profile.otp = None  # ভেরিফাই হয়ে গেলে ওটিপি ক্লিয়ার করে দেওয়া সিকিউর
             profile.save()
             return api_response(True, "Your account has been verified successfully.")
-        
+
         return api_response(False, "Invalid verification code. Please try again.", None, status.HTTP_400_BAD_REQUEST)
 
 # Login View
+
+
 class LoginAPIView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['1. Authentication'])
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -117,18 +127,18 @@ class LoginAPIView(generics.GenericAPIView):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
-        
+
         user = User.objects.filter(email=email).first()
-        
+
         if not user:
             return api_response(False, "No account exists with this email.", None, status.HTTP_404_NOT_FOUND)
 
         if not user.check_password(password):
             return api_response(False, "Incorrect password. Please try again.", None, status.HTTP_401_UNAUTHORIZED)
-            
+
         if not user.is_active:
             return api_response(False, "Your email is not verified. Please verify your OTP first.", {"is_verified": False}, status.HTTP_403_FORBIDDEN)
-        
+
         try:
             refresh = RefreshToken.for_user(user)
             data = {
@@ -139,3 +149,104 @@ class LoginAPIView(generics.GenericAPIView):
             return api_response(True, "Logged in successfully.", data)
         except Exception as e:
             return api_response(False, "Failed to generate tokens.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ১. Forgot Password - ইমেইল চেক করে OTP পাঠানো
+class ForgotPasswordView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordSerializer
+    permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['2. Authentication'])
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            error_msg = list(serializer.errors.values())[0][0]
+            return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        user = User.objects.filter(email=email).first()
+
+        if not user:
+            return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
+
+        # OTP জেনারেশন
+        otp_code = generate_otp()
+        profile = user.profile
+        profile.otp = otp_code
+        profile.otp_created_at = timezone.now()
+        profile.save()
+
+        # ইমেইল পাঠানো
+        try:
+            msg = EmailMessage(
+                'Reset your password - Pipyrit',
+                f'Your password reset code is: {otp_code}. Valid for 5 minutes.',
+                settings.DEFAULT_FROM_EMAIL,
+                [email]
+            )
+            msg.send()
+        except Exception:
+            return api_response(False, "Failed to send email. Try again.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return api_response(True, "Password reset code sent to your email.", {"email": email})
+
+# ২. Verify OTP for Password Reset
+
+
+class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordVerifySerializer
+    permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['2. Authentication'])
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return api_response(False, "Invalid data", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        user = User.objects.filter(email=email).first()
+
+        if not user or user.profile.otp != otp:
+            return api_response(False, "Invalid or expired OTP.", None, status.HTTP_400_BAD_REQUEST)
+
+        # এক্সপায়ারি চেক (৫ মিনিট)
+        expiry_time = user.profile.otp_created_at + timedelta(minutes=5)
+        if timezone.now() > expiry_time:
+            return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
+
+        return api_response(True, "OTP verified. You can now reset your password.")
+
+# ৩. Set New Password
+
+
+class SetNewPasswordView(generics.GenericAPIView):
+    serializer_class = SetNewPasswordSerializer
+    permission_classes = [AllowAny]
+    @swagger_auto_schema(tags=['2. Authentication'])
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            error_msg = list(serializer.errors.values())[0][0]
+            if isinstance(error_msg, list):
+                error_msg = error_msg[0]
+            return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        new_password = serializer.validated_data['password']
+
+        user = User.objects.filter(email=email).first()
+        if not user or user.profile.otp != otp:
+            return api_response(False, "Request unauthorized or OTP invalid.", None, status.HTTP_401_UNAUTHORIZED)
+
+        # পাসওয়ার্ড আপডেট
+        user.set_password(new_password)
+        user.save()
+
+        # ওটিপি ক্লিয়ার করা
+        user.profile.otp = None
+        user.profile.save()
+
+        return api_response(True, "Password has been reset successfully. You can now login.")
