@@ -88,19 +88,20 @@ INSTALLED_APPS = [
     'cases',
     'quizzes',
     'content',
-    'payment'
+    'payment',
 
 
     # Third-party apps
     'corsheaders',
     'rest_framework',
     'drf_spectacular',
+    'drf_yasg',
+    'rest_framework_simplejwt',
 
 
 ]
 
 REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'api_integration.utils.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
@@ -173,7 +174,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pipyrit.wsgi.application'
 
-
+AUTH_USER_MODEL = 'user.User'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -243,3 +244,12 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+EMAIL_BACKEND       = os.getenv('EMAIL_BACKEND')
+EMAIL_HOST          = os.getenv('EMAIL_HOST')
+EMAIL_USE_TLS       = os.getenv('EMAIL_USE_TLS') == 'True'
+EMAIL_PORT          = os.getenv('EMAIL_PORT')
+EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER')
+
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
