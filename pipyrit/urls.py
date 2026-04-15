@@ -9,7 +9,7 @@ schema_view = get_schema_view(
       title="Pipyrit API",
       default_version='v1',
       description="Pipyrit Project API Documentation",
-      contact=openapi.Contact(email="admin@pipyrit.com"),
+      contact=openapi.Contact(email="dev.mamun50@gmail.com"),
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),

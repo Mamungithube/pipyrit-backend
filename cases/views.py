@@ -1,9 +1,9 @@
 from rest_framework import viewsets, status, generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from drf_yasg.utils import swagger_auto_schema
 from .models import ImmigrationCase, CaseType, CaseDocument
 from .serializers import CaseSerializer, CaseTypeSerializer
-from user.views import api_response # আগের অ্যাপ থেকে ইম্পোর্ট
+from user.views import api_response # আপনার কাস্টম রেসপন্স
 
 class CaseTypeListView(generics.ListAPIView):
     queryset = CaseType.objects.all()
@@ -21,6 +21,10 @@ class CaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Swagger schema generation এর সময় AnonymousUser এর এরর এড়াতে এই চেকটি প্রয়োজন
+        if getattr(self, 'swagger_fake_view', False):
+            return ImmigrationCase.objects.none()
+            
         # ইউজার শুধুমাত্র তার নিজের কেসগুলো দেখবে
         return ImmigrationCase.objects.filter(user=self.request.user).order_by('-created_at')
 
@@ -35,19 +39,87 @@ class CaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             case_instance = serializer.save()
-            
-            # মাল্টিপল ডকুমেন্ট হ্যান্ডেল করা (যদি থাকে)
+            # মাল্টিপল ডকুমেন্ট হ্যান্ডেল করা
             files = request.FILES.getlist('documents')
             for f in files:
                 CaseDocument.objects.create(case=case_instance, file=f)
-            
             return api_response(True, "Case created successfully", serializer.data, status.HTTP_201_CREATED)
         
         error_msg = list(serializer.errors.values())[0][0]
-        return api_response(False, error_msg, serializer.errors, status.HTTP_300_BAD_REQUEST)
+        return api_response(False, error_msg if isinstance(error_msg, str) else error_msg[0], serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['3. Case Management'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return api_response(True, "Case details fetched", serializer.data)
+
+    @swagger_auto_schema(tags=['3. Case Management'])
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(tags=['3. Case Management'])
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            case_instance = serializer.save()
+            # আপডেটের সময় নতুন ফাইল যোগ করলে
+            files = request.FILES.getlist('documents')
+            for f in files:
+                CaseDocument.objects.create(case=case_instance, file=f)
+            return api_response(True, "Case updated successfully", serializer.data)
+        return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(tags=['3. Case Management'])
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return api_response(True, "Case deleted successfully", None, status.HTTP_204_NO_CONTENT)
+    
+
+class AdminCaseTypeViewSet(viewsets.ModelViewSet):
+    queryset = CaseType.objects.all().order_by('name')
+    serializer_class = CaseTypeSerializer
+    permission_classes = [IsAdminUser] # সিকিউরিটির জন্য IsAdminUser ব্যবহার করা হয়েছে
+
+
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    # এটি যোগ করলে PATCH অ্যাডমিন সেকশনে যাবে
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(True, "All case types fetched", serializer.data)
+
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return api_response(True, "Case type added successfully", serializer.data, status.HTTP_201_CREATED)
+        return api_response(False, "Failed to add case type", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return api_response(True, "Case type updated successfully", serializer.data)
+        return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return api_response(True, "Case type deleted successfully", None, status.HTTP_204_NO_CONTENT)
