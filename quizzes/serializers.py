@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import QuizQuestion, QuizOption, UserQuizResult
+from .models import QuizQuestion, QuizOption, UserQuizResult ,InterviewCategory, InterviewQuestion, InterviewOption, InterviewResult
 
 # ১. প্রশ্নের অপশনগুলোর জন্য
 class QuizOptionSerializer(serializers.ModelSerializer):
@@ -25,3 +25,37 @@ class UserQuizResultSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+    
+
+# interview এর জন্য কুইজের প্রশ্ন এবং অপশন সিরিয়ালাইজার
+
+# ১. ইন্টারভিউ ক্যাটাগরি সিরিয়ালাইজার
+class InterviewCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewCategory
+        fields = ['id', 'name']
+
+# ২. প্রশ্নের অপশন সিরিয়ালাইজার
+class InterviewOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewOption
+        fields = ['id', 'text', 'is_correct']
+
+# ৩. ইন্টারভিউ প্রশ্ন সিরিয়ালাইজার (অপশনসহ)
+class InterviewQuestionSerializer(serializers.ModelSerializer):
+    options = InterviewOptionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = InterviewQuestion
+        fields = ['id', 'category', 'text', 'audio_file', 'hint', 'level', 'points', 'options']
+
+# ৪. ইন্টারভিউ রেজাল্ট সিরিয়ালাইজার
+class InterviewResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewResult
+        fields = [
+            'id', 'category', 'level', 'total_questions', 
+            'correct_answers', 'total_points_earned', 
+            'confidence_level', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']

@@ -85,22 +85,22 @@ class AdminCaseTypeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser] # সিকিউরিটির জন্য IsAdminUser ব্যবহার করা হয়েছে
 
 
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
     # এটি যোগ করলে PATCH অ্যাডমিন সেকশনে যাবে
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
     
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return api_response(True, "All case types fetched", serializer.data)
 
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
@@ -108,7 +108,7 @@ class AdminCaseTypeViewSet(viewsets.ModelViewSet):
             return api_response(True, "Case type added successfully", serializer.data, status.HTTP_201_CREATED)
         return api_response(False, "Failed to add case type", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
@@ -118,7 +118,7 @@ class AdminCaseTypeViewSet(viewsets.ModelViewSet):
             return api_response(True, "Case type updated successfully", serializer.data)
         return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(tags=['Admin - Case Type Management'])
+    @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
