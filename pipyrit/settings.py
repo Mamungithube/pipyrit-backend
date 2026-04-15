@@ -183,6 +183,8 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
     'JSON_EDITOR': True,
     'persistAuthorization': True,
+    'OPERATIONS_SORTER': 'alpha',
+    'TAGS_SORTER': 'alpha',  
 }
 
 WSGI_APPLICATION = 'pipyrit.wsgi.application'
