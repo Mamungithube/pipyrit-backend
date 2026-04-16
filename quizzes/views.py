@@ -254,6 +254,10 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         random_questions = random.sample(queryset, count)
         serializer = self.get_serializer(random_questions, many=True)
         return api_response(True, f"{len(random_questions)} Questions fetched", serializer.data)
+    
+    @swagger_auto_schema(tags=['5. Interview - App'])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         tags=['5. Interview - App'],
@@ -338,6 +342,10 @@ class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(tags=['5. Interview - App'])
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+    
+    @swagger_auto_schema(tags=['5. Interview - App'])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(tags=['5. Interview - App'])
     @action(detail=True, methods=['get'], url_path='questions-answers')
@@ -361,12 +369,23 @@ class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
 
     @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def list(self, request, *args, **
-             kwargs): return super().list(request, *args, **kwargs)
+    def list(self, request, *args, **kwargs): return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def create(self, request, *args, **
-               kwargs): return super().create(request, *args, **kwargs)
+    def create(self, request, *args, **kwargs): return super().create(request, *args, **kwargs)
+
+    # নিচের ৪টি মেথড যোগ করুন যাতে এগুলো অ্যাডমিন গ্রুপে থাকে
+    @swagger_auto_schema(tags=['Admin - Interview Management'])
+    def retrieve(self, request, *args, **kwargs): return super().retrieve(request, *args, **kwargs)
+
+    @swagger_auto_schema(tags=['Admin - Interview Management'])
+    def update(self, request, *args, **kwargs): return super().update(request, *args, **kwargs)
+
+    @swagger_auto_schema(tags=['Admin - Interview Management'])
+    def partial_update(self, request, *args, **kwargs): return super().partial_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(tags=['Admin - Interview Management'])
+    def destroy(self, request, *args, **kwargs): return super().destroy(request, *args, **kwargs)
 
 
 # quizzes/views.py

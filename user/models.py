@@ -43,6 +43,7 @@ class User(AbstractUser):
 class Profile(models.Model):
     LANGUAGE_CHOICES = (
         ('en', 'English'),
+        ('hc', 'Haitian Creole'),
         ('es', 'Spanish'),
     )
 
