@@ -5,14 +5,22 @@ from django.core.mail import EmailMessage
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta
 
 from .models import User, Profile
-from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer
+from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer , ProfileSerializer, ChangePasswordSerializer
 from .utils import generate_otp
 from drf_yasg.utils import swagger_auto_schema
+
+from rest_framework import viewsets, status, filters
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAdminUser
+from drf_yasg.utils import swagger_auto_schema
+from django.contrib.auth import get_user_model
+from .serializers import AdminUserManagementSerializer
+
 
 def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
     """
@@ -32,8 +40,8 @@ def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
 class RegisterApiView(generics.GenericAPIView):
     serializer_class = RegistrationSerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['1. Authentication'])
 
+    @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -74,8 +82,8 @@ class RegisterApiView(generics.GenericAPIView):
 class VerifyOTPApiView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['1. Authentication'])
 
+    @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -117,8 +125,8 @@ class VerifyOTPApiView(generics.GenericAPIView):
 class LoginAPIView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['1. Authentication'])
 
+    @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -155,8 +163,8 @@ class LoginAPIView(generics.GenericAPIView):
 class ForgotPasswordView(generics.GenericAPIView):
     serializer_class = ForgotPasswordSerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['2. Authentication'])
 
+    @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -196,8 +204,8 @@ class ForgotPasswordView(generics.GenericAPIView):
 class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
     serializer_class = ForgotPasswordVerifySerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['2. Authentication'])
 
+    @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -223,8 +231,8 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
     permission_classes = [AllowAny]
-    @swagger_auto_schema(tags=['2. Authentication'])
 
+    @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -250,3 +258,105 @@ class SetNewPasswordView(generics.GenericAPIView):
         user.profile.save()
 
         return api_response(True, "Password has been reset successfully. You can now login.")
+
+
+class AdminUserManagementViewSet(viewsets.ModelViewSet):
+    # শুধুমাত্র সাধারণ ইউজারদের দেখাবে (অ্যাডমিন বা স্টাফদের বাদ দিয়ে)
+    queryset = User.objects.filter(is_staff=False).order_by('-date_joined')
+    serializer_class = AdminUserManagementSerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['full_name', 'email']  # ফিগমার সার্চ বারের জন্য
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(True, "User list fetched", serializer.data)
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    @action(detail=True, methods=['patch'], url_path='toggle-block')
+    def toggle_block(self, request, pk=None):
+        """
+        ইউজারকে ব্লক বা আনব্লক করার জন্য (is_active toggle)
+        """
+        user = self.get_object()
+        user.is_active = not user.is_active
+        user.save()
+        status_msg = "Blocked" if not user.is_active else "Unblocked"
+        return api_response(True, f"User has been {status_msg}", None)
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+
+class UserProfileViewSet(viewsets.GenericViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProfileSerializer
+
+    def get_object(self):
+        profile, created = Profile.objects.get_or_create(user=self.request.user)
+        return profile
+
+    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+        data['full_name'] = request.user.full_name
+        data['email'] = request.user.email
+        return api_response(True, "Profile fetched", data)
+
+    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return api_response(True, "Profile updated successfully", serializer.data)
+        return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+        error_msg = list(serializer.errors.values())[0][0]
+        return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(tags=['6. User Profile & Settings'], request_body=ChangePasswordSerializer)
+    @action(detail=False, methods=['post'], url_path='change-password')
+    def change_password(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            if not user.check_password(serializer.validated_data.get("old_password")):
+                return api_response(False, "Current password is wrong", None, status.HTTP_400_BAD_REQUEST)
+            user.set_password(serializer.validated_data.get("new_password"))
+            user.save()
+            return api_response(True, "Password updated successfully", None)
+        return api_response(False, "Validation Error", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    @action(detail=False, methods=['delete'], url_path='delete-account')
+    def delete_account(self, request):
+        request.user.delete()
+        return api_response(True, "Account deleted successfully", None)
+
+# --- ADMIN PROFILE VIEWSET (Image 15 এর জন্য) ---
+
+
+class AdminProfileViewSet(UserProfileViewSet):
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @swagger_auto_schema(tags=['Admin - User Management'])
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)

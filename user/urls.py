@@ -1,5 +1,13 @@
-from django.urls import path
+from django.db import router
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 from .views import *
+
+router = DefaultRouter()
+
+router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
+router.register(r'profile', UserProfileViewSet, basename='user-profile')
+router.register(r'admin/profile', AdminProfileViewSet, basename='admin-profile')
 
 urlpatterns = [
     path('register/', RegisterApiView.as_view(), name='register'),
@@ -10,4 +18,7 @@ urlpatterns = [
          name='forgot-password-verify'),
     path('forgot-password/set-password/',
          SetNewPasswordView.as_view(), name='set-new-password'),
+     
+     path('', include(router.urls)),
+         
 ]
