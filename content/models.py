@@ -13,3 +13,15 @@ class SiteSetting(models.Model):
 
     def __str__(self):
         return self.title
+    
+
+class VideoContent(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    thumbnail = models.ImageField(upload_to='video_thumbs/')
+    video_file = models.FileField(upload_to='videos/')
+    is_premium = models.BooleanField(default=False)
+    upload_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title

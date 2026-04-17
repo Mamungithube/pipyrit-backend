@@ -19,6 +19,7 @@ urlpatterns = [
     path('forgot-password/set-password/',
          SetNewPasswordView.as_view(), name='set-new-password'),
      
+     path('admin/dashboard-stats/', AdminDashboardStatsView.as_view(), name='admin-stats'),
      path('', include(router.urls)),
          
 ]

@@ -10,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta
 
 from .models import User, Profile
-from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer , ProfileSerializer, ChangePasswordSerializer
+from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer, ProfileSerializer, ChangePasswordSerializer
 from .utils import generate_otp
 from drf_yasg.utils import swagger_auto_schema
 
@@ -18,7 +18,8 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from drf_yasg.utils import swagger_auto_schema
-from django.contrib.auth import get_user_model
+from django.db.models import Count
+from django.db.models.functions import ExtractMonth
 from .serializers import AdminUserManagementSerializer
 
 
@@ -301,9 +302,19 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
 class UserProfileViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ProfileSerializer
+    queryset = Profile.objects.all()
+
+    def get_queryset(self):
+        # Swagger যখন এপিআই চেক করে তখন যেন ডাটাবেস এরর না দেয় তার জন্য এই লজিক
+        if getattr(self, 'swagger_fake_view', False):
+            return Profile.objects.none()
+        # ইউজার শুধুমাত্র নিজের প্রোফাইল কুয়েরি করতে পারবে
+        return Profile.objects.filter(user=self.request.user)
 
     def get_object(self):
-        profile, created = Profile.objects.get_or_create(user=self.request.user)
+        # আপনার আগের লজিক যা প্রোফাইল না থাকলে তৈরি করে নেয়
+        profile, created = Profile.objects.get_or_create(
+            user=self.request.user)
         return profile
 
     @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
@@ -318,7 +329,8 @@ class UserProfileViewSet(viewsets.GenericViewSet):
     @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return api_response(True, "Profile updated successfully", serializer.data)
@@ -350,6 +362,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
 
 
 class AdminProfileViewSet(UserProfileViewSet):
+    queryset = Profile.objects.all() 
 
     @swagger_auto_schema(tags=['Admin - User Management'])
     def retrieve(self, request, *args, **kwargs):
@@ -358,3 +371,23 @@ class AdminProfileViewSet(UserProfileViewSet):
     @swagger_auto_schema(tags=['Admin - User Management'])
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
+
+
+class AdminDashboardStatsView(generics.GenericAPIView):
+    permission_classes = [IsAdminUser]
+
+    @swagger_auto_schema(tags=['Admin - Dashboard'])
+    def get(self, request):
+        total_user = User.objects.filter(is_staff=False).count()
+        # গত ১২ মাসের রেজিস্ট্রেশন ডাটা (গ্রাফের জন্য)
+        registration_stats = User.objects.filter(is_staff=False).annotate(
+            month=ExtractMonth('date_joined')
+        ).values('month').annotate(count=Count('id')).order_by('month')
+
+        data = {
+            "total_users": total_user,
+            "new_registrations": User.objects.filter(date_joined__date=timezone.now().date()).count(),
+            "total_revenue": 0,  # পেমেন্ট পরে আসবে
+            "chart_data": list(registration_stats)
+        }
+        return api_response(True, "Dashboard stats fetched", data)
