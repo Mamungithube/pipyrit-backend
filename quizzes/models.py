@@ -2,7 +2,9 @@
 from django.db import models
 from django.conf import settings
 
-# কুইজের মেইন প্রশ্ন ব্যাংক
+# Create your models here.
+
+# ----------------Quiz models----------
 class QuizQuestion(models.Model):
     text = models.TextField() 
     hint = models.TextField(blank=True, null=True)
@@ -29,14 +31,13 @@ class UserQuizResult(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-# interview এর জন্য কুইজের প্রশ্ন এবং অপশন মডেল
+# --------------interview models---------------
 class InterviewCategory(models.Model):
     name = models.CharField(max_length=100, unique=True)
     
     def __str__(self):
         return self.name
 
-# ২. ইন্টারভিউ প্রশ্ন ব্যাংক (ক্যাটাগরি এবং লেভেল অনুযায়ী ফিল্টার হবে)
 class InterviewQuestion(models.Model):
     LEVEL_CHOICES = (
         ('beginner', 'Beginner'),
@@ -56,7 +57,6 @@ class InterviewQuestion(models.Model):
     def __str__(self):
         return f"[{self.level}] {self.text[:50]}"
 
-# ৩. ইন্টারভিউ অপশন
 class InterviewOption(models.Model):
     question = models.ForeignKey(InterviewQuestion, on_delete=models.CASCADE, related_name='options')
     text = models.CharField(max_length=255)
@@ -65,7 +65,6 @@ class InterviewOption(models.Model):
     def __str__(self):
         return self.text
 
-# ৪. ইন্টারভিউ রেজাল্ট (Confidence Level সহ)
 class InterviewResult(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     category = models.ForeignKey(InterviewCategory, on_delete=models.SET_NULL, null=True)

@@ -12,11 +12,10 @@ class CaseDocumentSerializer(serializers.ModelSerializer):
         fields = ['id', 'file', 'uploaded_at']
 
 class CaseSerializer(serializers.ModelSerializer):
-    # রিড-অনলি ফিল্ডস (রেসপন্স এর জন্য)
+
     documents = CaseDocumentSerializer(many=True, read_only=True)
     case_type_details = CaseTypeSerializer(source='case_type', read_only=True)
     
-    # রাইটেবল ফিল্ড (ইনপুট এর জন্য)
     case_type = serializers.PrimaryKeyRelatedField(
         queryset=CaseType.objects.all(), 
         required=True
@@ -31,12 +30,11 @@ class CaseSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # রিকোয়েস্ট থেকে ইউজার সেট করা
+
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
 
     def to_representation(self, instance):
-        # আউটপুটে যদি case_type না থাকে তবে যেন এরর না দেয় তার হ্যান্ডলিং
         representation = super().to_representation(instance)
         if not instance.case_type:
             representation['case_type_details'] = None

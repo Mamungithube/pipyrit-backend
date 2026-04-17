@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from drf_yasg.utils import swagger_auto_schema
 from .models import ImmigrationCase, CaseType, CaseDocument
 from .serializers import CaseSerializer, CaseTypeSerializer
-from user.views import api_response # আপনার কাস্টম রেসপন্স
+from user.views import api_response 
 
 class CaseTypeListView(generics.ListAPIView):
     queryset = CaseType.objects.all()
@@ -21,11 +21,9 @@ class CaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Swagger schema generation এর সময় AnonymousUser এর এরর এড়াতে এই চেকটি প্রয়োজন
         if getattr(self, 'swagger_fake_view', False):
             return ImmigrationCase.objects.none()
             
-        # ইউজার শুধুমাত্র তার নিজের কেসগুলো দেখবে
         return ImmigrationCase.objects.filter(user=self.request.user).order_by('-created_at')
 
     @swagger_auto_schema(tags=['3. Case Management'])
@@ -39,7 +37,6 @@ class CaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             case_instance = serializer.save()
-            # মাল্টিপল ডকুমেন্ট হ্যান্ডেল করা
             files = request.FILES.getlist('documents')
             for f in files:
                 CaseDocument.objects.create(case=case_instance, file=f)
@@ -65,7 +62,6 @@ class CaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         if serializer.is_valid():
             case_instance = serializer.save()
-            # আপডেটের সময় নতুন ফাইল যোগ করলে
             files = request.FILES.getlist('documents')
             for f in files:
                 CaseDocument.objects.create(case=case_instance, file=f)
@@ -82,14 +78,14 @@ class CaseViewSet(viewsets.ModelViewSet):
 class AdminCaseTypeViewSet(viewsets.ModelViewSet):
     queryset = CaseType.objects.all().order_by('name')
     serializer_class = CaseTypeSerializer
-    permission_classes = [IsAdminUser] # সিকিউরিটির জন্য IsAdminUser ব্যবহার করা হয়েছে
+    permission_classes = [IsAdminUser] 
 
 
     @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-    # এটি যোগ করলে PATCH অ্যাডমিন সেকশনে যাবে
+
     @swagger_auto_schema(tags=['Admin  Case Type Management'])
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)

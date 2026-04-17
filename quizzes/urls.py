@@ -22,9 +22,7 @@ router.register(r'admin/interview-questions', AdminInterviewQuestionViewSet, bas
 router.register(r'admin/interview-categories', AdminInterviewCategoryViewSet, basename='admin-interview-categories')
 
 urlpatterns = [
-    # ইন্টারভিউ ক্যাটাগরি লিস্ট (যেমন: Marriage, Asylum)
     path('interview-categories/', InterviewCategoryListView.as_view(), name='interview-categories'),
     
-    # সব রাউটার এন্ডপয়েন্ট একসাথে
     path('', include(router.urls)),
 ]

@@ -14,7 +14,7 @@ from .models import QuizQuestion, QuizOption, UserQuizResult
 from .serializers import QuizQuestionSerializer, UserQuizResultSerializer
 from user.views import api_response
 
-"""------------------------------কুইজের জন্য ভিউসেট নিচে যোগ করা হবে-----------------------------"""
+"""------------------------------ Quiz Views -----------------------------"""
 
 
 class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
@@ -22,7 +22,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Swagger চেক করার সময় এরর এড়াতে
         if getattr(self, 'swagger_fake_view', False):
             return QuizQuestion.objects.none()
 
@@ -30,7 +29,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def list(self, request, *args, **kwargs):
-        # শুধু লিস্ট দেখানোর সময় আমরা ২৫টি র্যান্ডম প্রশ্ন নিবো
         queryset = list(self.get_queryset())
         count = min(len(queryset), 25)
         random_questions = random.sample(queryset, count)
@@ -40,7 +38,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def retrieve(self, request, *args, **kwargs):
-        # আইডি দিয়ে খোঁজা এখন কাজ করবে কারণ get_queryset এখন QuerySet রিটার্ন করছে
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return api_response(True, "Question details fetched", serializer.data)
@@ -78,18 +75,16 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
             o_id = item.get('option_id')
 
             try:
-                # ডাটাবেস থেকে প্রশ্ন এবং অপশন চেক করা
                 question = QuizQuestion.objects.get(id=q_id)
                 selected_option = QuizOption.objects.get(
                     id=o_id, question=question)
 
                 if selected_option.is_correct:
                     correct_answers_count += 1
-                    total_earned_points += question.points  # মডেলে সেট করা পয়েন্ট যোগ হবে
+                    total_earned_points += question.points 
             except (QuizQuestion.DoesNotExist, QuizOption.DoesNotExist):
                 continue
 
-        # রেজাল্ট সেভ করা
         result = UserQuizResult.objects.create(
             user=request.user,
             total_questions=total_questions,
@@ -100,7 +95,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         q_ids = [item.get('question_id') for item in user_answers]
         result.questions.set(q_ids)
 
-        # ইউজারের প্রোফাইলে টোটাল পয়েন্ট আপডেট করা
         profile = request.user.profile
         profile.total_points += total_earned_points
         profile.save()
@@ -119,7 +113,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
     def questions_answers(self, request, pk=None):
 
         instance = self.get_object()
-        # আপাতত সব প্রশ্ন ব্যাংক থেকে সঠিক উত্তরসহ ডাটা পাঠানোর লজিক:
+
         questions = QuizQuestion.objects.prefetch_related('options').all()
         data = []
         for q in questions:
@@ -130,7 +124,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
             })
         return api_response(True, "Questions and answers fetched", data)
 
-# quizzes/views.py
 
 
 class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
@@ -156,7 +149,7 @@ class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(tags=['4. Quiz - App'])
     @action(detail=True, methods=['get'], url_path='questions-answers')
     def questions_answers(self, request, pk=None):
-        instance = self.get_object()  # এখন এটি UserQuizResult (আইডি ১) খুঁজে বের করবে
+        instance = self.get_object()  
         questions = instance.questions.prefetch_related('options').all()
 
         data = []
@@ -168,7 +161,7 @@ class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
             })
         return api_response(True, "Questions and answers fetched", data)
 
-# --- ADMIN DASHBOARD APIs (অ্যাডমিনের জন্য) ---
+# ---------------------- ADMIN DASHBOARD APIs -----------------------
 
 
 class AdminQuizManagementViewSet(viewsets.ModelViewSet):
@@ -201,7 +194,7 @@ class AdminQuizManagementViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
-"""-----------------------------Interview Quiz এর জন্য ভিউসেট নিচে যোগ করা হবে-----------------------------"""
+"""----------------------------- Interview Quiz -----------------------------"""
 
 
 # --- APP APIs (ইউজারের জন্য) ---
@@ -227,7 +220,6 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return InterviewQuestion.objects.none()
 
-        # ক্যাটাগরি এবং লেভেল অনুযায়ী ফিল্টার করা
         category_id = self.request.query_params.get('category_id')
         level = self.request.query_params.get(
             'level')  # beginner/intermediate/advanced
@@ -303,7 +295,6 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
             except:
                 continue
 
-        # Confidence Level ক্যালকুলেশন (সঠিক উত্তরের হার)
         total_qs = len(user_answers) if len(user_answers) > 0 else 1
         confidence = int((correct_answers_count / total_qs) * 100)
 
@@ -318,7 +309,6 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         )
         result.questions.set(q_ids)
 
-        # প্রোফাইল আপডেট
         profile = request.user.profile
         profile.total_points += total_earned_points
         profile.confidence_level = confidence  # লেটেস্ট কনফিডেন্স সেভ হবে
@@ -326,8 +316,6 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         return api_response(True, "Interview submitted", InterviewResultSerializer(result).data)
 
-
-# quizzes/views.py এর শেষে এটি যোগ করুন
 
 class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -360,7 +348,7 @@ class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):
                 "answer": correct_option.text if correct_option else "N/A"
             })
         return api_response(True, "Interview Q&A fetched", data)
-# --- ADMIN APIs (ড্যাশবোর্ডের জন্য) ---
+# --- ADMIN APIs ---
 
 
 class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):

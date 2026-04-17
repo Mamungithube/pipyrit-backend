@@ -24,7 +24,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    username = None  # ইমেইল দিয়ে লগইন হবে তাই ইউজারনেম বাদ
+    username = None 
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=100)
 
@@ -54,7 +54,6 @@ class Profile(models.Model):
     profile_picture = models.ImageField(
         upload_to='profiles/', blank=True, null=True)
 
-    # অ্যাপের ফিচারের জন্য লজিক্যাল ফিল্ডস
     language = models.CharField(
         max_length=10, choices=LANGUAGE_CHOICES, default='en')
     total_points = models.IntegerField(default=0)
@@ -66,7 +65,6 @@ class Profile(models.Model):
 
 
 """=========================Notification Model========================="""
-
 
 class Notification(models.Model):
     NOTIFICATION_TYPES = (
@@ -81,7 +79,7 @@ class Notification(models.Model):
         on_delete=models.CASCADE,
         related_name='notifications'
     )
-    # যে ইউজার বা সিস্টেম নোটিফিকেশন পাঠালো
+    
     sender = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
