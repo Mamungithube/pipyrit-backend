@@ -286,9 +286,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(tags=['Admin - User Management'])
     @action(detail=True, methods=['patch'], url_path='toggle-block')
     def toggle_block(self, request, pk=None):
-        """
-        ইউজারকে ব্লক বা আনব্লক করার জন্য (is_active toggle)
-        """
+
         user = self.get_object()
         user.is_active = not user.is_active
         user.save()
@@ -308,7 +306,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
         profile, created = Profile.objects.get_or_create(user=self.request.user)
         return profile
 
-    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -317,7 +315,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
         data['email'] = request.user.email
         return api_response(True, "Profile fetched", data)
 
-    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -329,7 +327,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
         error_msg = list(serializer.errors.values())[0][0]
         return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(tags=['6. User Profile & Settings'], request_body=ChangePasswordSerializer)
+    @swagger_auto_schema(tags=['6. User Profile & Settings - App'], request_body=ChangePasswordSerializer)
     @action(detail=False, methods=['post'], url_path='change-password')
     def change_password(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
@@ -342,7 +340,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
             return api_response(True, "Password updated successfully", None)
         return api_response(False, "Validation Error", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(tags=['6. User Profile & Settings'])
+    @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
     @action(detail=False, methods=['delete'], url_path='delete-account')
     def delete_account(self, request):
         request.user.delete()

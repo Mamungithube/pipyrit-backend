@@ -391,9 +391,7 @@ class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):
 # quizzes/views.py
 
 class AdminInterviewCategoryViewSet(viewsets.ModelViewSet):
-    """
-    অ্যাডমিন ড্যাশবোর্ড থেকে ইন্টারভিউ ক্যাটাগরি (Add, Edit, Delete) করার জন্য।
-    """
+
     queryset = InterviewCategory.objects.all().order_by('name')
     serializer_class = InterviewCategorySerializer
     permission_classes = [IsAdminUser]
