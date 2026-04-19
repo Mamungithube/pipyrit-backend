@@ -1,3 +1,4 @@
+import email
 import time
 from django.utils import timezone
 from django.conf import settings
@@ -21,6 +22,40 @@ from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Count
 from django.db.models.functions import ExtractMonth
 from .serializers import AdminUserManagementSerializer
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
+import time
+import math
+
+class CustomPagination(PageNumberPagination):
+    page_size = 10 
+
+    def get_paginated_response(self, data):
+        total_count = self.page.paginator.count
+        page_size = self.get_page_size(self.request)
+        total_pages = math.ceil(total_count / page_size) if page_size else 1
+        
+        return Response({
+            "code": 200,
+            "success": True,
+            "message": "Data fetched successfully",
+            "timestamp": int(time.time()),
+            "pagination": {
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "current_page": self.page.number,
+                "page_size": page_size,
+                "has_next": self.page.has_next(),
+                "has_previous": self.page.has_previous(),
+                "next_page": self.page.next_page_number() if self.page.has_next() else None,
+                "prev_page": self.page.previous_page_number() if self.page.has_previous() else None,
+            },
+            "results": data
+        })
 
 
 def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
@@ -115,9 +150,11 @@ class VerifyOTPApiView(generics.GenericAPIView):
 
 # Login View
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginAPIView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
@@ -170,7 +207,7 @@ class ForgotPasswordView(generics.GenericAPIView):
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
 
         otp_code = generate_otp()
-        profile = user.profile
+        profile, _ = Profile.objects.get_or_create(user=user)
         profile.otp = otp_code
         profile.otp_created_at = timezone.now()
         profile.save()
@@ -204,14 +241,23 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
         otp = serializer.validated_data['otp']
         user = User.objects.filter(email=email).first()
 
-        if not user or user.profile.otp != otp:
+        if not user:
             return api_response(False, "Invalid or expired OTP.", None, status.HTTP_400_BAD_REQUEST)
 
-        expiry_time = user.profile.otp_created_at + timedelta(minutes=5)
+        profile, _ = Profile.objects.get_or_create(user=user)
+
+        if profile.otp != otp:
+            return api_response(False, "Invalid or expired OTP.", None, status.HTTP_400_BAD_REQUEST)
+
+        if not profile.otp_created_at:
+            return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
+
+        expiry_time = profile.otp_created_at + timedelta(minutes=5)
         if timezone.now() > expiry_time:
             return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
 
         return api_response(True, "OTP verified. You can now reset your password.")
+
 
 # 3. Set New Password
 
@@ -233,14 +279,20 @@ class SetNewPasswordView(generics.GenericAPIView):
         new_password = serializer.validated_data['password']
 
         user = User.objects.filter(email=email).first()
-        if not user or user.profile.otp != otp:
+
+        if not user:
+            return api_response(False, "Request unauthorized or OTP invalid.", None, status.HTTP_401_UNAUTHORIZED)
+
+        profile, _ = Profile.objects.get_or_create(user=user)
+
+        if profile.otp != otp:                     # ← profile ব্যবহার করো
             return api_response(False, "Request unauthorized or OTP invalid.", None, status.HTTP_401_UNAUTHORIZED)
 
         user.set_password(new_password)
         user.save()
 
-        user.profile.otp = None
-        user.profile.save()
+        profile.otp = None                         # ← profile ব্যবহার করো
+        profile.save()
 
         return api_response(True, "Password has been reset successfully. You can now login.")
 
@@ -251,6 +303,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
     filter_backends = [filters.SearchFilter]
     search_fields = ['full_name', 'email'] 
+    pagination_class = CustomPagination
 
     @swagger_auto_schema(tags=['Admin - User Management'])
     def list(self, request, *args, **kwargs):
@@ -259,27 +312,31 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-
         serializer = self.get_serializer(queryset, many=True)
         return api_response(True, "User list fetched", serializer.data)
 
+    # এটিই আপনার স্ক্রিনশটে Raw ডাটা দিচ্ছিল, এখন ঠিক করা হলো:
     @swagger_auto_schema(tags=['Admin - User Management'])
     def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return api_response(True, "User details fetched", serializer.data)
 
     @swagger_auto_schema(tags=['Admin - User Management'])
     @action(detail=True, methods=['patch'], url_path='toggle-block')
     def toggle_block(self, request, pk=None):
-
         user = self.get_object()
         user.is_active = not user.is_active
         user.save()
         status_msg = "Blocked" if not user.is_active else "Unblocked"
         return api_response(True, f"User has been {status_msg}", None)
 
+    # ডিলিট রেসপন্স ঠিক করা হলো:
     @swagger_auto_schema(tags=['Admin - User Management'])
     def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        instance = self.get_object()
+        instance.delete()
+        return api_response(True, "User deleted successfully", None, status.HTTP_204_NO_CONTENT)
 
 
 class UserProfileViewSet(viewsets.GenericViewSet):
@@ -309,15 +366,21 @@ class UserProfileViewSet(viewsets.GenericViewSet):
     @swagger_auto_schema(tags=['6. User Profile & Settings - App'])
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=True)
+
+        # ✅ full_name আলাদাভাবে User model-এ save করো
+        full_name = request.data.get('full_name')
+        if full_name:
+            instance.user.full_name = full_name
+            instance.user.save()
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return api_response(True, "Profile updated successfully", serializer.data)
+            data = serializer.data
+            data['full_name'] = instance.user.full_name
+            data['email'] = instance.user.email
+            return api_response(True, "Profile updated successfully", data)
         return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
-
-        error_msg = list(serializer.errors.values())[0][0]
-        return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['6. User Profile & Settings - App'], request_body=ChangePasswordSerializer)
     @action(detail=False, methods=['post'], url_path='change-password')
@@ -340,9 +403,8 @@ class UserProfileViewSet(viewsets.GenericViewSet):
 
 # --- ADMIN PROFILE VIEWSET ---
 
-
 class AdminProfileViewSet(UserProfileViewSet):
-    queryset = Profile.objects.all() 
+    queryset = Profile.objects.all()
 
     @swagger_auto_schema(tags=['Admin - User Management'])
     def retrieve(self, request, *args, **kwargs):

@@ -13,6 +13,7 @@ from drf_yasg import openapi
 from .models import QuizQuestion, QuizOption, UserQuizResult
 from .serializers import QuizQuestionSerializer, UserQuizResultSerializer
 from user.views import api_response
+from user.views import CustomPagination
 
 """------------------------------ Quiz Views -----------------------------"""
 
@@ -355,25 +356,42 @@ class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):
     queryset = InterviewQuestion.objects.all().order_by('-created_at')
     serializer_class = InterviewQuestionSerializer
     permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
 
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def list(self, request, *args, **kwargs): return super().list(request, *args, **kwargs)
+    @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        return api_response(True, "Questions fetched", self.get_serializer(queryset, many=True).data)
 
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def create(self, request, *args, **kwargs): return super().create(request, *args, **kwargs)
+    @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return api_response(True, "Question and Options created", serializer.data, status.HTTP_201_CREATED)
+        return api_response(False, "Failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    # নিচের ৪টি মেথড যোগ করুন যাতে এগুলো অ্যাডমিন গ্রুপে থাকে
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def retrieve(self, request, *args, **kwargs): return super().retrieve(request, *args, **kwargs)
+    @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
+    def retrieve(self, request, *args, **kwargs):
+        return api_response(True, "Details fetched", self.get_serializer(self.get_object()).data)
 
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def update(self, request, *args, **kwargs): return super().update(request, *args, **kwargs)
+    @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(self.get_object(), data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return api_response(True, "Updated successfully", serializer.data)
+        return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def partial_update(self, request, *args, **kwargs): return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(tags=['Admin - Interview Management'])
-    def destroy(self, request, *args, **kwargs): return super().destroy(request, *args, **kwargs)
+    @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
+    def destroy(self, request, *args, **kwargs):
+        self.get_object().delete()
+        return api_response(True, "Deleted successfully", None, status.HTTP_204_NO_CONTENT)
 
 
 # quizzes/views.py
