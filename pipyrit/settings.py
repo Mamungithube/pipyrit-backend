@@ -254,6 +254,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Media files (Uploaded videos, thumbnails, images)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -268,3 +274,9 @@ EMAIL_PORT          = os.getenv('EMAIL_PORT')
 EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER')
 
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+
+STRIPE_PUBLIC_KEY=os.getenv('STRIPE_PUBLIC_KEY')
+STRIPE_SECRET_KEY=os.getenv('STRIPE_SECRET_KEY')
+STRIPE_WEBHOOK_SECRET=os.getenv('STRIPE_WEBHOOK_SECRET')
+SITE_URL=os.getenv('SITE_URL')

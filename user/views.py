@@ -10,6 +10,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta
 
+from payment.models import Transaction
+
 from .models import User, Profile
 from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer, ProfileSerializer, ChangePasswordSerializer
 from .utils import generate_otp
@@ -19,7 +21,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from drf_yasg.utils import swagger_auto_schema
-from django.db.models import Count
+from django.db.models import Count, Sum
 from django.db.models.functions import ExtractMonth
 from .serializers import AdminUserManagementSerializer
 from django.views.decorators.csrf import csrf_exempt
@@ -415,20 +417,88 @@ class AdminProfileViewSet(UserProfileViewSet):
         return super().partial_update(request, *args, **kwargs)
 
 
-class AdminDashboardStatsView(generics.GenericAPIView):
+class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
+    """
+    ফিগমা স্ক্রিন ১০: ড্যাশবোর্ড হোম।
+    একটি মাত্র এপিআই এন্ডপয়েন্ট যা স্ট্যাটাস কার্ড, ১২ মাসের চার্ট এবং পেজিনেটেড ইউজার লিস্ট দিবে।
+    """
     permission_classes = [IsAdminUser]
+    queryset = User.objects.filter(is_staff=False).order_by('-date_joined')
+    serializer_class = AdminUserManagementSerializer
+    pagination_class = CustomPagination
 
     @swagger_auto_schema(tags=['Admin - Dashboard'])
-    def get(self, request):
+    def list(self, request, *args, **kwargs):
+        # --- ১. টপ কার্ডস ও স্ট্যাটস ক্যালকুলেশন ---
         total_user = User.objects.filter(is_staff=False).count()
-        registration_stats = User.objects.filter(is_staff=False).annotate(
-            month=ExtractMonth('date_joined')
-        ).values('month').annotate(count=Count('id')).order_by('month')
+        
+        # এই মাসের রেজিস্ট্রেশন কাউন্ট
+        current_month = timezone.now().month
+        new_registrations = User.objects.filter(
+            is_staff=False, 
+            date_joined__month=current_month
+        ).count()
+        
+        # টোটাল রেভিনিউ
+        total_revenue = Transaction.objects.filter(
+            status='completed'
+        ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-        data = {
-            "total_users": total_user,
-            "new_registrations": User.objects.filter(date_joined__date=timezone.now().date()).count(),
-            "total_revenue": 0,  
-            "chart_data": list(registration_stats)
+        # --- ২. আর্নিং সামারি চার্ট ডাটা (১২ মাসের ডাটা ফিক্স) ---
+        # ডাটাবেস থেকে শুধু ওই মাসগুলো আনা যেগুলোতে আয় হয়েছে
+        chart_stats = Transaction.objects.filter(
+            status='completed'
+        ).annotate(
+            month=ExtractMonth('created_at')
+        ).values('month').annotate(total=Sum('amount')).order_by('month')
+
+        # কুয়েরিসেটকে ডিকশনারিতে রূপান্তর (সহজে মেলাবার জন্য)
+        stats_dict = {item['month']: item['total'] for item in chart_stats}
+
+        # ১২ মাসের পূর্ণাঙ্গ লিস্ট তৈরি (ফিগমা অনুযায়ী Jan-Dec)
+        full_year_chart = []
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        for i in range(1, 13):
+            full_year_chart.append({
+                "month_index": i,
+                "month_name": month_names[i-1],
+                "total": float(stats_dict.get(i, 0)) # আয় না থাকলে ০.০
+            })
+
+        # --- ৩. ইউজার লিস্ট (টেবিল) উইথ পেজিনেশন হ্যান্ডলিং ---
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            # পেজিনেশন ডাটা নিরাপদভাবে বের করা
+            pagination_data = {
+                "total_count": self.paginator.page.paginator.count,
+                "total_pages": self.paginator.page.paginator.num_pages,
+                "current_page": self.paginator.page.number,
+                "has_next": self.paginator.page.has_next(),
+                "has_previous": self.paginator.page.has_previous(),
+            }
+            user_results = serializer.data
+        else:
+            serializer = self.get_serializer(queryset, many=True)
+            pagination_data = None
+            user_results = serializer.data
+
+        # --- ৪. ফাইনাল রেসপন্স কম্বাইন করা ---
+        response_data = {
+            "summary": {
+                "total_users": total_user,
+                "new_registrations": new_registrations,
+                "total_revenue": float(total_revenue),
+                "currency": "USD"
+            },
+            "earning_chart": full_year_chart,
+            "user_table": {
+                "pagination": pagination_data,
+                "results": user_results
+            }
         }
-        return api_response(True, "Dashboard stats fetched", data)
+
+        return api_response(True, "Dashboard data fetched successfully", response_data)

@@ -24,6 +24,7 @@ urlpatterns = [
    path('api/cases/', include('cases.urls')),
    path('api/quizzes/', include('quizzes.urls')),
    path('api/system/', include('content.urls')),
+   path('api/payment/', include('payment.urls')),
     
     # Swagger Endpoints
    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

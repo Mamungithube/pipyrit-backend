@@ -8,6 +8,7 @@ router = DefaultRouter()
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
 router.register(r'profile', UserProfileViewSet, basename='user-profile')
 router.register(r'admin/profile', AdminProfileViewSet, basename='admin-profile')
+router.register(r'admin/dashboard-home', AdminDashboardHomeViewSet, basename='admin-dashboard-home')
 
 urlpatterns = [
     path('register/', RegisterApiView.as_view(), name='register'),
@@ -19,7 +20,6 @@ urlpatterns = [
     path('forgot-password/set-password/',
          SetNewPasswordView.as_view(), name='set-new-password'),
      
-     path('admin/dashboard-stats/', AdminDashboardStatsView.as_view(), name='admin-stats'),
      path('', include(router.urls)),
          
 ]

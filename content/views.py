@@ -13,6 +13,7 @@ from drf_yasg.utils import swagger_auto_schema
 from .models import SiteSetting, VideoContent
 from .serializers import SiteSettingSerializer, VideoContentSerializer
 from user.views import api_response, CustomPagination # আপনার পাথ অনুযায়ী
+from user.permissions import IsPremiumUser
 
 # --- ১. APP APIs (ইউজার সেকশন) ---
 
@@ -178,20 +179,26 @@ class UserActivityHistoryView(generics.GenericAPIView):
 
 
 class VideoStreamView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsPremiumUser] 
 
     def get(self, request, pk):
         video = get_object_or_404(VideoContent, pk=pk)
         path = video.video_file.path
+        
+        # ফাইল সাইজ এবং টাইপ আগে ডিফাইন করে নেওয়া ভালো
+        size = os.path.getsize(path)
+        content_type = 'video/mp4'
+        
         range_header = request.META.get('HTTP_RANGE', '').strip()
         range_re = re.compile(r'bytes\s*=\s*(\d+)\s*-\s*(\d*)', re.I)
         range_match = range_re.match(range_header)
-        size = os.path.getsize(path)
 
         if range_match:
             first_byte, last_byte = range_match.groups()
             first_byte = int(first_byte) if first_byte else 0
             last_byte = int(last_byte) if last_byte else size - 1
+            if last_byte >= size:
+                last_byte = size - 1
             length = last_byte - first_byte + 1
             
             def file_iterator(file_path, offset, length):
@@ -199,13 +206,14 @@ class VideoStreamView(APIView):
                     f.seek(offset, os.SEEK_SET)
                     remaining = length
                     while remaining > 0:
-                        data = f.read(min(remaining, 8192))
+                        data = f.read(min(remaining, 65536))
                         if not data: break
                         yield data
                         remaining -= len(data)
 
-            res = StreamingHttpResponse(file_iterator(path, first_byte, length), status=206, content_type='video/mp4')
-            res['Content-Range'] = f'bytes {first_byte}-{last_byte}/{size}'
+            response = StreamingHttpResponse(file_iterator(path, first_byte, length), status=206, content_type=content_type)
+            response['Content-Range'] = f'bytes {first_byte}-{last_byte}/{size}'
+            response['Content-Length'] = str(length)
         else:
             def file_iterator(file_path):
                 with open(file_path, 'rb') as f:
@@ -213,7 +221,9 @@ class VideoStreamView(APIView):
                         data = f.read(8192)
                         if not data: break
                         yield data
-            res = StreamingHttpResponse(file_iterator(path), content_type='video/mp4')
-        
-        res['Accept-Ranges'] = 'bytes'
-        return res
+            
+            response = StreamingHttpResponse(file_iterator(path), status=200, content_type=content_type)
+            response['Content-Length'] = str(size)
+
+        response['Accept-Ranges'] = 'bytes'
+        return response
