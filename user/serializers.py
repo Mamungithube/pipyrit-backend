@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile, Notification
+from .models import DeviceToken, User, Profile, Notification
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -77,9 +77,23 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    time_ago = serializers.SerializerMethodField()
+
     class Meta:
         model = Notification
         fields = '__all__'
+
+    def get_time_ago(self, obj):
+        # ফিগমা অনুযায়ী "5 min ago" বা "1 hour ago" দেখানোর জন্য
+        from django.utils.timesince import timesince
+        if not obj.created_at:
+            return "Just now"
+        return timesince(obj.created_at).split(',')[0] + " ago"
+
+class DeviceTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeviceToken
+        fields = ['token', 'platform']
 
 class AdminUserManagementSerializer(serializers.ModelSerializer):
     profile_picture = serializers.ImageField(source='profile.profile_picture', read_only=True)

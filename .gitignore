@@ -124,3 +124,13 @@ logs/
 cloudflared-linux-amd64.deb
 "celerybeat-schedule" 
 celerybeat-schedule
+
+
+# ভিডিও ফাইল ignore
+videos/
+*.mp4
+
+# thumbnail ignore
+video_thumbs/
+*.png
+*.jpg
