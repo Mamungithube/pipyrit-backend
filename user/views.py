@@ -4,6 +4,8 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.shortcuts import get_object_or_404
+from drf_yasg import openapi 
+from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,7 +22,6 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
-from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Count, Sum
 from django.db.models.functions import ExtractMonth
 from .serializers import AdminUserManagementSerializer
@@ -502,3 +503,102 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
         }
 
         return api_response(True, "Dashboard data fetched successfully", response_data)
+    
+
+from .models import Notification, DeviceToken
+from .serializers import NotificationSerializer, DeviceTokenSerializer
+
+
+# --- ১. মোবাইল অ্যাপ এপিআই (ইউজার সেকশন) ---
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """ইউজার তার নিজের নোটিফিকেশন দেখবে এবং ডিলিট করতে পারবে"""
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
+        return Notification.objects.filter(recipient=self.request.user)
+
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        return api_response(True, "Notifications fetched", self.get_serializer(queryset, many=True).data)
+
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_read = True # ক্লিক করলে পড়া হয়েছে হিসেবে মার্ক হবে
+        instance.save()
+        return api_response(True, "Notification details", self.get_serializer(instance).data)
+
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    def destroy(self, request, *args, **kwargs):
+        """ফিগমার ট্র্যাশ আইকন এর কাজ"""
+        instance = self.get_object()
+        instance.delete()
+        return api_response(True, "Notification deleted successfully", None, status.HTTP_204_NO_CONTENT)
+
+
+class DeviceTokenViewSet(viewsets.GenericViewSet):
+    """মোবাইল অ্যাপ লগইন করার পর FCM টোকেন এখানে পাঠাবে"""
+    serializer_class = DeviceTokenSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    @action(detail=False, methods=['post'], url_path='register-token')
+    def register_token(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            DeviceToken.objects.update_or_create(
+                user=request.user,
+                token=serializer.validated_data['token'],
+                defaults={'platform': serializer.validated_data['platform']}
+            )
+            return api_response(True, "Device token registered successfully")
+        return api_response(False, "Registration failed", serializer.errors, 400)
+
+
+# --- ২. অ্যাডমিন এপিআই (ড্যাশবোর্ড সেকশন) ---
+
+class AdminNotificationViewSet(viewsets.GenericViewSet):
+    """অ্যাডমিন ড্যাশবোর্ড থেকে নোটিফিকেশন কন্ট্রোল করার জন্য"""
+    permission_classes = [IsAdminUser]
+
+    @swagger_auto_schema(
+        tags=['Admin - Notification Management'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'notification_type': openapi.Schema(type=openapi.TYPE_STRING, description="case_update, system_update, etc."),
+                'message': openapi.Schema(type=openapi.TYPE_STRING),
+                'user_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Optional: specific user ID"),
+            },
+            required=['notification_type', 'message']
+        )
+    )
+    @action(detail=False, methods=['post'], url_path='send')
+    def send_notification(self, request):
+        msg_text = request.data.get('message')
+        msg_type = request.data.get('notification_type')
+        user_id = request.data.get('user_id')
+
+        if user_id:
+            # নির্দিষ্ট একজন ইউজারকে পাঠানো
+            target_user = get_object_or_404(User, id=user_id)
+            Notification.objects.create(recipient=target_user, sender=request.user, notification_type=msg_type, message=msg_text)
+        else:
+            # সব ইউজারকে পাঠানো (Broadcast)
+            users = User.objects.filter(is_staff=False)
+            notifications = [
+                Notification(recipient=u, sender=request.user, notification_type=msg_type, message=msg_text) for u in users
+            ]
+            Notification.objects.bulk_create(notifications)
+
+        return api_response(True, "Notification(s) sent successfully")

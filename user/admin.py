@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Register your models here.
-from .models import User, Profile
+from .models import Notification, User, Profile
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     list_display = ('id', 'email', 'full_name', 'is_staff', 'is_active')
@@ -15,3 +15,12 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'user__full_name')
     list_filter = ('language', 'is_verified')
     ordering = ('user__email',)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'recipient', 'sender', 'notification_type', 'message'
+                        , 'is_read', 'created_at')
+    search_fields = ('recipient__email', 'sender__email', 'message')
+    list_filter = ('notification_type', 'is_read')
+    ordering = ('-created_at',)

@@ -8,7 +8,12 @@ router = DefaultRouter()
 router.register(r'admin/users', AdminUserManagementViewSet, basename='admin-users')
 router.register(r'profile', UserProfileViewSet, basename='user-profile')
 router.register(r'admin/profile', AdminProfileViewSet, basename='admin-profile')
+
 router.register(r'admin/dashboard-home', AdminDashboardHomeViewSet, basename='admin-dashboard-home')
+
+router.register(r'notifications', NotificationViewSet, basename='notifications')
+router.register(r'device', DeviceTokenViewSet, basename='device-token')
+router.register(r'admin/notifications', AdminNotificationViewSet, basename='admin-notifications')
 
 urlpatterns = [
     path('register/', RegisterApiView.as_view(), name='register'),
