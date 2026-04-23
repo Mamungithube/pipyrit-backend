@@ -544,6 +544,22 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         instance = self.get_object()
         instance.delete()
         return api_response(True, "Notification deleted successfully", None, status.HTTP_204_NO_CONTENT)
+    
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        """বেল আইকনে লাল সংখ্যাটি দেখানোর জন্য"""
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return api_response(True, "Unread count fetched", {"unread_count": count})
+    
+    @swagger_auto_schema(tags=['9. Notifications - App'])
+    @action(detail=True, methods=['patch'], url_path='mark-read')
+    def mark_as_read(self, request, pk=None):
+        """একটি নির্দিষ্ট নোটিফিকেশন পড়া হয়েছে হিসেবে মার্ক করা"""
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return api_response(True, "Marked as read")
 
 
 class DeviceTokenViewSet(viewsets.GenericViewSet):
