@@ -185,7 +185,7 @@ class LoginAPIView(generics.GenericAPIView):
             data = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": UserSerializer(user).data
+                "user": UserSerializer(user, context={'request': request}).data  # ✅
             }
             return api_response(True, "Logged in successfully.", data)
         except Exception as e:

@@ -3,6 +3,16 @@ from .models import DeviceToken, User, Profile, Notification
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+    
+    def get_profile_picture(self, obj):
+        request = self.context.get('request')
+        print("request:", request)
+        print("profile_picture:", obj.profile_picture)
+        if obj.profile_picture and request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return None
+    
     class Meta:
         model = Profile
         fields = ['profile_picture', 'language',
@@ -15,9 +25,11 @@ class ProfileSerializer(serializers.ModelSerializer):
             instance.user.save()
         return super().update(instance, validated_data)
 
-
 class UserSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer(read_only=True)
+    profile = serializers.SerializerMethodField()
+
+    def get_profile(self, obj):
+        return ProfileSerializer(obj.profile, context=self.context).data
 
     class Meta:
         model = User

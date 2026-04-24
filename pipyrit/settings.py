@@ -124,7 +124,8 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
 }
 
-
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 # ==================== JWT ====================
 
 SIMPLE_JWT = {
