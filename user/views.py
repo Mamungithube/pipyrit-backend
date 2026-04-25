@@ -133,13 +133,8 @@ class VerifyOTPApiView(generics.GenericAPIView):
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
 
         profile = user.profile
-
-        if not profile.otp:
-            return api_response(False, "No active OTP found. Please request a new one.", None, status.HTTP_400_BAD_REQUEST)
-
-        expiry_time = profile.otp_created_at + timedelta(minutes=5)
-        if timezone.now() > expiry_time:
-            return api_response(False, "OTP has expired. Please resend a new code.", None, status.HTTP_400_BAD_REQUEST)
+        if not profile.otp or (profile.otp_created_at + timedelta(minutes=5)) < timezone.now():
+            return api_response(False, "OTP has expired or invalid.", None, status.HTTP_400_BAD_REQUEST)
 
         if profile.otp == otp:
             user.is_active = True
@@ -147,7 +142,13 @@ class VerifyOTPApiView(generics.GenericAPIView):
             profile.is_verified = True
             profile.otp = None  
             profile.save()
-            return api_response(True, "Your account has been verified successfully.")
+            
+            # ভেরিফিকেশন শেষে সরাসরি টোকেন দিয়ে লগইন করিয়ে দেওয়া (প্রফেশনাল ফ্লো)
+            refresh = RefreshToken.for_user(user)
+            data = {
+                "accessToken": str(refresh.access_token)
+            }
+            return api_response(True, "Otp verified successfully", data)
 
         return api_response(False, "Invalid verification code. Please try again.", None, status.HTTP_400_BAD_REQUEST)
 
@@ -215,6 +216,8 @@ class ForgotPasswordView(generics.GenericAPIView):
         profile.otp_created_at = timezone.now()
         profile.save()
 
+        expires_at = (profile.otp_created_at + timedelta(minutes=5)).isoformat()
+
         try:
             msg = EmailMessage(
                 'Reset your password - Pipyrit',
@@ -226,7 +229,13 @@ class ForgotPasswordView(generics.GenericAPIView):
         except Exception:
             return api_response(False, "Failed to send email. Try again.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return api_response(True, "Password reset code sent to your email.", {"email": email})
+        # আপনার দেওয়া ফরম্যাট অনুযায়ী ডাটা রিটার্ন
+        data = {
+            "email": email,
+            "otp": otp_code,
+            "expiresAt": expires_at
+        }
+        return api_response(True, f"OTP sent to your email:{email}", data)
 
 # 2. Verify OTP for Password Reset
 
@@ -244,60 +253,55 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
         otp = serializer.validated_data['otp']
         user = User.objects.filter(email=email).first()
 
-        if not user:
+        if not user or user.profile.otp != otp:
             return api_response(False, "Invalid or expired OTP.", None, status.HTTP_400_BAD_REQUEST)
 
-        profile, _ = Profile.objects.get_or_create(user=user)
-
-        if profile.otp != otp:
-            return api_response(False, "Invalid or expired OTP.", None, status.HTTP_400_BAD_REQUEST)
-
-        if not profile.otp_created_at:
-            return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
-
-        expiry_time = profile.otp_created_at + timedelta(minutes=5)
+        expiry_time = user.profile.otp_created_at + timedelta(minutes=5)
         if timezone.now() > expiry_time:
             return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
 
-        return api_response(True, "OTP verified. You can now reset your password.")
+        # ভেরিফাই হওয়ার পর টোকেন জেনারেট করা
+        refresh = RefreshToken.for_user(user)
+        data = {
+            "accessToken": str(refresh.access_token)
+        }
+        return api_response(True, "Otp verified successfully", data)
 
 
 # 3. Set New Password
-
+# 3. Set New Password (Authenticated via accessToken from previous step)
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated] # টোকেন মাস্ট লাগবে
 
     @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             error_msg = list(serializer.errors.values())[0][0]
-            if isinstance(error_msg, list):
-                error_msg = error_msg[0]
             return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data['email']
-        otp = serializer.validated_data['otp']
-        new_password = serializer.validated_data['password']
+        # টোকেন থেকে অটোমেটিক ইউজার পাওয়া যাবে
+        user = request.user
+        new_password = serializer.validated_data.get('confirm_password')
 
-        user = User.objects.filter(email=email).first()
-
-        if not user:
-            return api_response(False, "Request unauthorized or OTP invalid.", None, status.HTTP_401_UNAUTHORIZED)
-
-        profile, _ = Profile.objects.get_or_create(user=user)
-
-        if profile.otp != otp:                     # ← profile ব্যবহার করো
-            return api_response(False, "Request unauthorized or OTP invalid.", None, status.HTTP_401_UNAUTHORIZED)
-
+        # পাসওয়ার্ড আপডেট
         user.set_password(new_password)
         user.save()
 
-        profile.otp = None                         # ← profile ব্যবহার করো
+        # পাসওয়ার্ড চেঞ্জ হওয়ার পর ওটিপি ক্লিয়ার করা (নিরাপত্তার জন্য)
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.otp = None
         profile.save()
 
-        return api_response(True, "Password has been reset successfully. You can now login.")
+        # নতুন টোকেন জেনারেট করা (লগইন করা অবস্থায় রাখার জন্য)
+        refresh = RefreshToken.for_user(user)
+        data = {
+            "accessToken": str(refresh.access_token),
+            "refreshToken": str(refresh)
+        }
+
+        return api_response(True, "Password changed successfully.", data)
 
 
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
