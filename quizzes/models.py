@@ -28,9 +28,13 @@ class QuizQuestion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
+        # যদি প্রশ্ন নতুন হয় এবং টেক্সট থাকে, তবেই অডিও জেনারেট হবে
         if not self.audio_file and self.text:
+            from django.utils import timezone # লোকাল ইম্পোর্ট সেফটি
             audio_content = generate_tts_audio(self.text)
-            self.audio_file.save(f"quiz_{int(time.time())}.mp3", audio_content, save=False)
+            # time.time() এর বদলে timezone.now().timestamp() ব্যবহার করা হয়েছে
+            timestamp = int(timezone.now().timestamp())
+            self.audio_file.save(f"quiz_{timestamp}.mp3", audio_content, save=False)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -79,8 +83,11 @@ class InterviewQuestion(models.Model):
     def save(self, *args, **kwargs):
         # অটোমেটিক ইন্টারভিউ অডিও জেনারেট
         if not self.audio_file and self.text:
+            from django.utils import timezone
             audio_content = generate_tts_audio(self.text)
-            self.audio_file.save(f"interview_{int(time.time())}.mp3", audio_content, save=False)
+            # এখানেও টাইমস্ট্যাম্প লজিক আপডেট করা হয়েছে
+            timestamp = int(timezone.now().timestamp())
+            self.audio_file.save(f"interview_{timestamp}.mp3", audio_content, save=False)
         super().save(*args, **kwargs)
 
     def __str__(self):

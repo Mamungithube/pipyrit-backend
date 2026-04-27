@@ -12,7 +12,8 @@ class QuizQuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = QuizQuestion
-        fields = ['id', 'text', 'hint', 'points', 'options']
+        fields = ['id', 'text', 'audio_file', 'hint', 'points', 'options']
+        read_only_fields = ['audio_file']
 
     def create(self, validated_data):
         options_data = validated_data.pop('options', [])
@@ -62,7 +63,8 @@ class InterviewQuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InterviewQuestion
-        fields = ['id', 'category', 'text', 'hint', 'level', 'points', 'options']
+        fields = ['id', 'category', 'text', 'audio_file', 'hint', 'level', 'points', 'options']
+        read_only_fields = ['audio_file']
 
     def create(self, validated_data):
         # pop করার সময় ডিফল্ট খালি লিস্ট দিন যাতে KeyError না আসে
