@@ -7,8 +7,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     
     def get_profile_picture(self, obj):
         request = self.context.get('request')
-        print("request:", request)
-        print("profile_picture:", obj.profile_picture)
+        # print("request:", request)
+        # print("profile_picture:", obj.profile_picture)
         if obj.profile_picture and request:
             return request.build_absolute_uri(obj.profile_picture.url)
         return None
@@ -88,7 +88,7 @@ class NotificationSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_time_ago(self, obj):
-        # ফিগমা অনুযায়ী "5 min ago" বা "1 hour ago" দেখানোর জন্য
+        # Show "5 min ago" or "1 hour ago"
         from django.utils.timesince import timesince
         if not obj.created_at:
             return "Just now"

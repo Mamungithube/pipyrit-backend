@@ -3,7 +3,7 @@ from django.utils import timezone
 
 class IsPremiumUser(permissions.BasePermission):
     """
-    ইউজার যদি একটিভ সাবস্ক্রাইবার হয় অথবা ট্রায়াল পিরিয়ডে থাকে তবেই এক্সেস পাবে।
+    Users will only get access if they are an active subscriber or are in a trial period.
     """
     def has_permission(self, request, view):
         if not request.user.is_authenticated:

@@ -143,7 +143,6 @@ class VerifyOTPApiView(generics.GenericAPIView):
             profile.otp = None  
             profile.save()
             
-            # ভেরিফিকেশন শেষে সরাসরি টোকেন দিয়ে লগইন করিয়ে দেওয়া (প্রফেশনাল ফ্লো)
             refresh = RefreshToken.for_user(user)
             data = {
                 "accessToken": str(refresh.access_token)
@@ -186,7 +185,7 @@ class LoginAPIView(generics.GenericAPIView):
             data = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": UserSerializer(user, context={'request': request}).data  # ✅
+                "user": UserSerializer(user, context={'request': request}).data  
             }
             return api_response(True, "Logged in successfully.", data)
         except Exception as e:
@@ -229,7 +228,6 @@ class ForgotPasswordView(generics.GenericAPIView):
         except Exception:
             return api_response(False, "Failed to send email. Try again.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # আপনার দেওয়া ফরম্যাট অনুযায়ী ডাটা রিটার্ন
         data = {
             "email": email,
             "otp": otp_code,
@@ -260,7 +258,6 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
         if timezone.now() > expiry_time:
             return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
 
-        # ভেরিফাই হওয়ার পর টোকেন জেনারেট করা
         refresh = RefreshToken.for_user(user)
         data = {
             "accessToken": str(refresh.access_token)
@@ -268,11 +265,10 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
         return api_response(True, "Otp verified successfully", data)
 
 
-# 3. Set New Password
 # 3. Set New Password (Authenticated via accessToken from previous step)
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
-    permission_classes = [IsAuthenticated] # টোকেন মাস্ট লাগবে
+    permission_classes = [IsAuthenticated] 
 
     @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
@@ -281,20 +277,20 @@ class SetNewPasswordView(generics.GenericAPIView):
             error_msg = list(serializer.errors.values())[0][0]
             return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-        # টোকেন থেকে অটোমেটিক ইউজার পাওয়া যাবে
+        # Automatic user can be obtained from token
         user = request.user
         new_password = serializer.validated_data.get('confirm_password')
 
-        # পাসওয়ার্ড আপডেট
+        # password update 
         user.set_password(new_password)
         user.save()
 
-        # পাসওয়ার্ড চেঞ্জ হওয়ার পর ওটিপি ক্লিয়ার করা (নিরাপত্তার জন্য)
+        # Clearing OTP after password change (for security)
         profile, _ = Profile.objects.get_or_create(user=user)
         profile.otp = None
         profile.save()
 
-        # নতুন টোকেন জেনারেট করা (লগইন করা অবস্থায় রাখার জন্য)
+        # Generate new token (to keep logged in)
         refresh = RefreshToken.for_user(user)
         data = {
             "accessToken": str(refresh.access_token),
@@ -322,7 +318,6 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return api_response(True, "User list fetched", serializer.data)
 
-    # এটিই আপনার স্ক্রিনশটে Raw ডাটা দিচ্ছিল, এখন ঠিক করা হলো:
     @swagger_auto_schema(tags=['Admin - User Management'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -338,7 +333,6 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         status_msg = "Blocked" if not user.is_active else "Unblocked"
         return api_response(True, f"User has been {status_msg}", None)
 
-    # ডিলিট রেসপন্স ঠিক করা হলো:
     @swagger_auto_schema(tags=['Admin - User Management'])
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -374,7 +368,6 @@ class UserProfileViewSet(viewsets.GenericViewSet):
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # ✅ full_name আলাদাভাবে User model-এ save করো
         full_name = request.data.get('full_name')
         if full_name:
             instance.user.full_name = full_name
@@ -424,8 +417,7 @@ class AdminProfileViewSet(UserProfileViewSet):
 
 class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
     """
-    ফিগমা স্ক্রিন ১০: ড্যাশবোর্ড হোম।
-    একটি মাত্র এপিআই এন্ডপয়েন্ট যা স্ট্যাটাস কার্ড, ১২ মাসের চার্ট এবং পেজিনেটেড ইউজার লিস্ট দিবে।
+    A single API endpoint that provides status cards, 12-month charts, and paginated user lists.
     """
     permission_classes = [IsAdminUser]
     queryset = User.objects.filter(is_staff=False).order_by('-date_joined')
@@ -434,33 +426,33 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
 
     @swagger_auto_schema(tags=['Admin - Dashboard'])
     def list(self, request, *args, **kwargs):
-        # --- ১. টপ কার্ডস ও স্ট্যাটস ক্যালকুলেশন ---
+        # --- 1. Top Cards and Status Calculation ---
         total_user = User.objects.filter(is_staff=False).count()
         
-        # এই মাসের রেজিস্ট্রেশন কাউন্ট
+        # New Registrations for the Current Month
         current_month = timezone.now().month
         new_registrations = User.objects.filter(
             is_staff=False, 
             date_joined__month=current_month
         ).count()
         
-        # টোটাল রেভিনিউ
+        # Total Revenue
         total_revenue = Transaction.objects.filter(
             status='completed'
         ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-        # --- ২. আর্নিং সামারি চার্ট ডাটা (১২ মাসের ডাটা ফিক্স) ---
-        # ডাটাবেস থেকে শুধু ওই মাসগুলো আনা যেগুলোতে আয় হয়েছে
+        # --- 2. Earning Summary Chart Data (12 Months of Data) ---
+        # Fetch only the months that have income
         chart_stats = Transaction.objects.filter(
             status='completed'
         ).annotate(
             month=ExtractMonth('created_at')
         ).values('month').annotate(total=Sum('amount')).order_by('month')
 
-        # কুয়েরিসেটকে ডিকশনারিতে রূপান্তর (সহজে মেলাবার জন্য)
+        # Convert QuerySet to Dictionary (for easy matching)
         stats_dict = {item['month']: item['total'] for item in chart_stats}
 
-        # ১২ মাসের পূর্ণাঙ্গ লিস্ট তৈরি (ফিগমা অনুযায়ী Jan-Dec)
+        # 12 Months List (According to Figma Jan-Dec)
         full_year_chart = []
         month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         
@@ -468,16 +460,16 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
             full_year_chart.append({
                 "month_index": i,
                 "month_name": month_names[i-1],
-                "total": float(stats_dict.get(i, 0)) # আয় না থাকলে ০.০
+                "total": float(stats_dict.get(i, 0)) # If no income, then 0.0
             })
 
-        # --- ৩. ইউজার লিস্ট (টেবিল) উইথ পেজিনেশন হ্যান্ডলিং ---
+        # --- 3. User List (Table) with Pagination Handling ---
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            # পেজিনেশন ডাটা নিরাপদভাবে বের করা
+            # Safely extract pagination data
             pagination_data = {
                 "total_count": self.paginator.page.paginator.count,
                 "total_pages": self.paginator.page.paginator.num_pages,
@@ -491,7 +483,7 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
             pagination_data = None
             user_results = serializer.data
 
-        # --- ৪. ফাইনাল রেসপন্স কম্বাইন করা ---
+        # --- 4. Final Response Combination ---
         response_data = {
             "summary": {
                 "total_users": total_user,
@@ -499,7 +491,7 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
                 "total_revenue": float(total_revenue),
                 "currency": "USD"
             },
-            "earning_chart": full_year_chart,
+            # "earning_chart": full_year_chart,
             "user_table": {
                 "pagination": pagination_data,
                 "results": user_results
@@ -513,10 +505,10 @@ from .models import Notification, DeviceToken
 from .serializers import NotificationSerializer, DeviceTokenSerializer
 
 
-# --- ১. মোবাইল অ্যাপ এপিআই (ইউজার সেকশন) ---
+# --- 1. Mobile App API (User Section) ---
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
-    """ইউজার তার নিজের নোটিফিকেশন দেখবে এবং ডিলিট করতে পারবে"""
+    """The user will be able to see and delete their own notifications."""
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPagination
@@ -538,13 +530,13 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(tags=['9. Notifications - App'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.is_read = True # ক্লিক করলে পড়া হয়েছে হিসেবে মার্ক হবে
+        instance.is_read = True # Click to mark as read
         instance.save()
         return api_response(True, "Notification details", self.get_serializer(instance).data)
 
     @swagger_auto_schema(tags=['9. Notifications - App'])
     def destroy(self, request, *args, **kwargs):
-        """ফিগমার ট্র্যাশ আইকন এর কাজ"""
+        """Figma Trash Icon Works"""
         instance = self.get_object()
         instance.delete()
         return api_response(True, "Notification deleted successfully", None, status.HTTP_204_NO_CONTENT)
@@ -552,14 +544,14 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(tags=['9. Notifications - App'])
     @action(detail=False, methods=['get'], url_path='unread-count')
     def unread_count(self, request):
-        """বেল আইকনে লাল সংখ্যাটি দেখানোর জন্য"""
+        """To show the red number on the bell icon"""
         count = Notification.objects.filter(recipient=request.user, is_read=False).count()
         return api_response(True, "Unread count fetched", {"unread_count": count})
     
     @swagger_auto_schema(tags=['9. Notifications - App'])
     @action(detail=True, methods=['patch'], url_path='mark-read')
     def mark_as_read(self, request, pk=None):
-        """একটি নির্দিষ্ট নোটিফিকেশন পড়া হয়েছে হিসেবে মার্ক করা"""
+        """Mark a specific notification as read"""
         notification = self.get_object()
         notification.is_read = True
         notification.save()
@@ -567,7 +559,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class DeviceTokenViewSet(viewsets.GenericViewSet):
-    """মোবাইল অ্যাপ লগইন করার পর FCM টোকেন এখানে পাঠাবে"""
+    """After logging into the mobile app, FCM will send the token here."""
     serializer_class = DeviceTokenSerializer
     permission_classes = [IsAuthenticated]
 
@@ -585,10 +577,10 @@ class DeviceTokenViewSet(viewsets.GenericViewSet):
         return api_response(False, "Registration failed", serializer.errors, 400)
 
 
-# --- ২. অ্যাডমিন এপিআই (ড্যাশবোর্ড সেকশন) ---
+# --- 2. Admin API (Dashboard Section) ---
 
 class AdminNotificationViewSet(viewsets.GenericViewSet):
-    """অ্যাডমিন ড্যাশবোর্ড থেকে নোটিফিকেশন কন্ট্রোল করার জন্য"""
+    """To control notifications from the admin dashboard"""
     permission_classes = [IsAdminUser]
 
     @swagger_auto_schema(
@@ -610,11 +602,11 @@ class AdminNotificationViewSet(viewsets.GenericViewSet):
         user_id = request.data.get('user_id')
 
         if user_id:
-            # নির্দিষ্ট একজন ইউজারকে পাঠানো
+            # Send to a specific user
             target_user = get_object_or_404(User, id=user_id)
             Notification.objects.create(recipient=target_user, sender=request.user, notification_type=msg_type, message=msg_text)
         else:
-            # সব ইউজারকে পাঠানো (Broadcast)
+            # Sending to all users (Broadcast)
             users = User.objects.filter(is_staff=False)
             notifications = [
                 Notification(recipient=u, sender=request.user, notification_type=msg_type, message=msg_text) for u in users

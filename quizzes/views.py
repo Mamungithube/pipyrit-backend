@@ -198,7 +198,7 @@ class AdminQuizManagementViewSet(viewsets.ModelViewSet):
 """----------------------------- Interview Quiz -----------------------------"""
 
 
-# --- APP APIs (ইউজারের জন্য) ---
+# --- APP APIs (for users) ---
 
 
 class InterviewCategoryListView(generics.ListAPIView):
@@ -312,7 +312,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += total_earned_points
-        profile.confidence_level = confidence  # লেটেস্ট কনফিডেন্স সেভ হবে
+        profile.confidence_level = confidence  # The latest confidence will be saved.
         profile.save()
 
         return api_response(True, "Interview submitted", InterviewResultSerializer(result).data)

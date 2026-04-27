@@ -134,3 +134,10 @@ videos/
 video_thumbs/
 *.png
 *.jpg
+case_documents/media/
+interview_audio/
+quiz_audio/
+__pycache__/
+*.pyc
+db.sqlite3
+.env

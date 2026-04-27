@@ -17,7 +17,6 @@ class ImmigrationCase(models.Model):
     reminder_date = models.DateField(blank=True, null=True)
     reminder_note = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
-    
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

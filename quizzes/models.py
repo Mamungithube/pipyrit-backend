@@ -1,15 +1,37 @@
 
+from io import BytesIO
+from time import time
+
 from django.db import models
 from django.conf import settings
+import os
+from gtts import gTTS
+from django.db import models
+from django.conf import settings
+from django.core.files.base import ContentFile
 
 # Create your models here.
+
+# অডিও জেনারেট করার জন্য একটি হেল্পার ফাংশন
+def generate_tts_audio(text, lang='en'):
+    tts = gTTS(text=text, lang=lang)
+    audio_buffer = BytesIO()
+    tts.write_to_fp(audio_buffer)
+    return ContentFile(audio_buffer.getvalue())
 
 # ----------------Quiz models----------
 class QuizQuestion(models.Model):
     text = models.TextField() 
+    audio_file = models.FileField(upload_to='quiz_audio/', blank=True, null=True)
     hint = models.TextField(blank=True, null=True)
     points = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.audio_file and self.text:
+            audio_content = generate_tts_audio(self.text)
+            self.audio_file.save(f"quiz_{int(time.time())}.mp3", audio_content, save=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.text[:50]
@@ -50,9 +72,16 @@ class InterviewQuestion(models.Model):
     audio_file = models.FileField(upload_to='interview_audio/', blank=True, null=True) # Listen বাটন
     hint = models.TextField(blank=True, null=True) 
     level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
-    points = models.IntegerField(default=5) 
+    points = models.IntegerField(default=25) 
     
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        # অটোমেটিক ইন্টারভিউ অডিও জেনারেট
+        if not self.audio_file and self.text:
+            audio_content = generate_tts_audio(self.text)
+            self.audio_file.save(f"interview_{int(time.time())}.mp3", audio_content, save=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"[{self.level}] {self.text[:50]}"
