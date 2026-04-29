@@ -12,10 +12,10 @@ from .serializers import AdminEarningTableSerializer, SubscriptionPlanSerializer
 from user.views import api_response, CustomPagination
 from django.shortcuts import get_object_or_404
 
-# --- ১. অ্যাপ এপিআই (ইউজার সেকশন) ---
+# --- 1. App API (User Section) ---
 
 class AppSubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
-    """ইউজার শুধুমাত্র একটিভ প্ল্যানগুলো দেখতে পারবে"""
+    """User can only view active plans."""
     queryset = SubscriptionPlan.objects.filter(is_active=True).order_by('price')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAuthenticated]
@@ -53,18 +53,18 @@ class InAppPurchaseViewSet(viewsets.GenericViewSet):
 
         plan = get_object_or_404(SubscriptionPlan, id=plan_id)
         
-        # সাবস্ক্রিপশন আপডেট লজিক
+        # Subscription update logic
         sub, _ = UserSubscription.objects.get_or_create(user=user)
         sub.plan = plan
         sub.platform = platform
-        sub.store_transaction_id = token # রিয়েল পারচেজ আইডি হবে
+        sub.store_transaction_id = token # Real purchase ID will be here
         sub.is_active = True
         
         days = 30 if plan.billing_cycle == 'monthly' else 365
         sub.expiry_date = timezone.now() + timedelta(days=days)
         sub.save()
 
-        # ট্রানজ্যাকশন সেভ (Earnings ড্যাশবোর্ডের জন্য)
+        # Save Transaction (for Earnings Dashboard)
         Transaction.objects.create(
             user=user, plan=plan, invoice_id=f"IAP-{int(timezone.now().timestamp())}",
             amount=plan.price, payment_method=platform, status='completed'
@@ -73,10 +73,10 @@ class InAppPurchaseViewSet(viewsets.GenericViewSet):
         return api_response(True, "Subscription activated successfully", {"expiry_date": sub.expiry_date})
 
 
-# --- ২. অ্যাডমিন এপিআই (ড্যাশবোর্ড সেকশন) ---
+# --- 2. Admin APIs (Admin Dashboard Section) ---
 
 class AdminSubscriptionPlanViewSet(viewsets.ModelViewSet):
-    """অ্যাডমিন ড্যাশবোর্ড থেকে প্ল্যান ম্যানেজ করার জন্য (Image 13)"""
+    """Admin dashboard for managing plans (Image 13)"""
     queryset = SubscriptionPlan.objects.all().order_by('-id')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminUser]
@@ -113,26 +113,26 @@ class AdminEarningDashboardViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
     filter_backends = [filters.SearchFilter]
-    search_fields = ['invoice_id', 'user__full_name', 'transaction_id']  # ফিগমার সার্চ বারের জন্য
+    search_fields = ['invoice_id', 'user__full_name', 'transaction_id']  
 
     @swagger_auto_schema(tags=['Admin - Payment Management'])
     def list(self, request, *args, **kwargs):
-        # ১. সাপ্তাহিক আয়ের হিসাব (গত ৭ দিন)
+        # 1. Weekly Revenue Calculation (Last 7 Days)
         last_week = timezone.now() - timedelta(days=7)
         weekly_revenue = Transaction.objects.filter(
             status='completed', 
             created_at__gte=last_week
         ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-        # ২. টেবিলের ডাটা (Pagination সহ)
+        # 2. Table Data (With Pagination)
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            # আপনার কাস্টম পেজিনেশন রেসপন্স
+            # Custom paginated response
             response = self.get_paginated_response(serializer.data)
-            # রেসপন্সের ভেতরে Weekly Revenue ঢুকিয়ে দেওয়া
+            # Insert Weekly Revenue into the response
             response.data['weekly_revenue'] = float(weekly_revenue)
             return response
 

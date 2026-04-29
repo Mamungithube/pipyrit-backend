@@ -28,7 +28,8 @@ from .serializers import AdminUserManagementSerializer
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
-
+from .models import Notification, DeviceToken
+from .serializers import NotificationSerializer, DeviceTokenSerializer
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 import time
@@ -501,8 +502,7 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
         return api_response(True, "Dashboard data fetched successfully", response_data)
     
 
-from .models import Notification, DeviceToken
-from .serializers import NotificationSerializer, DeviceTokenSerializer
+
 
 
 # --- 1. Mobile App API (User Section) ---

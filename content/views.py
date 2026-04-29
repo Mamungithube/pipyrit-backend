@@ -12,10 +12,10 @@ from drf_yasg.utils import swagger_auto_schema
 
 from .models import SiteSetting, VideoContent
 from .serializers import SiteSettingSerializer, VideoContentSerializer
-from user.views import api_response, CustomPagination # আপনার পাথ অনুযায়ী
+from user.views import api_response, CustomPagination 
 from user.permissions import IsPremiumUser
 
-# --- ১. APP APIs (ইউজার সেকশন) ---
+# --- 1. APP API (User Script) ---
 
 class AppSiteSettingView(generics.RetrieveAPIView):
     queryset = SiteSetting.objects.all()
@@ -54,7 +54,7 @@ class AppVideoViewSet(viewsets.ReadOnlyModelViewSet):
         return api_response(True, "Frame details fetched", serializer.data)
 
 
-# --- ২. ADMIN APIs (অ্যাডমিন ড্যাশবোর্ড সেকশন) ---
+# --- 2. ADMIN APIs (Admin Dashboard Section) ---
 
 class AdminSiteSettingViewSet(viewsets.ModelViewSet):
     queryset = SiteSetting.objects.all()
@@ -107,7 +107,7 @@ class AdminVideoViewSet(viewsets.ModelViewSet):
     pagination_class = CustomPagination
     parser_classes = (MultiPartParser, FormParser)
 
-    # ১. লিস্ট এপিআই (পেজিনেশন সহ)
+    # 1. List API (With Pagination)
     @swagger_auto_schema(tags=['Admin - Video Management'])
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -117,7 +117,7 @@ class AdminVideoViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         return api_response(True, "Videos fetched", self.get_serializer(queryset, many=True).data)
 
-    # ২. ক্রিয়েট এপিআই
+    # 2. Create API
     @swagger_auto_schema(
         tags=['Admin - Video Management'],
         manual_parameters=[
@@ -132,14 +132,14 @@ class AdminVideoViewSet(viewsets.ModelViewSet):
             return api_response(True, "Video uploaded successfully", serializer.data, status.HTTP_201_CREATED)
         return api_response(False, "Upload failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    # ৩. ডিটেইল এপিআই (এটিই আপনার স্ক্রিনশটে ভুল ছিল)
+    # 3. Retrieve API
     @swagger_auto_schema(tags=['Admin - Video Management'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return api_response(True, "Video details fetched", serializer.data)
 
-    # ৪. আপডেট এপিআই
+    # 4. Update API
     @swagger_auto_schema(tags=['Admin - Video Management'])
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -150,7 +150,7 @@ class AdminVideoViewSet(viewsets.ModelViewSet):
             return api_response(True, "Video updated successfully", serializer.data)
         return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-    # ৫. ডিলিট এপিআই
+    # 5. Delete API
     @swagger_auto_schema(tags=['Admin - Video Management'])
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -158,7 +158,7 @@ class AdminVideoViewSet(viewsets.ModelViewSet):
         return api_response(True, "Video deleted successfully", None, status.HTTP_204_NO_CONTENT)
 
 
-# --- ৩. অন্যান্য ফিচারের জন্য API ---
+# --- 3. Other Features' APIs ---
 
 class UserActivityHistoryView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -185,7 +185,7 @@ class VideoStreamView(APIView):
         video = get_object_or_404(VideoContent, pk=pk)
         path = video.video_file.path
         
-        # ফাইল সাইজ এবং টাইপ আগে ডিফাইন করে নেওয়া ভালো
+        # It is better to define the file size and type in advance.
         size = os.path.getsize(path)
         content_type = 'video/mp4'
         
