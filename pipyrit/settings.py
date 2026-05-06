@@ -124,7 +124,7 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
 }
 
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'False').strip().lower() in ['true', '1', 'yes']
 CORS_ALLOW_CREDENTIALS = True
 # ==================== JWT ====================
 
@@ -174,6 +174,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
+    'DEFAULT_API_URL': 'https://0b8d-162-4-34-65.ngrok-free.app',
     'SECURITY_DEFINITIONS': {
         'Bearer': {
             'type': 'apiKey',

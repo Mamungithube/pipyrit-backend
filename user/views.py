@@ -106,9 +106,9 @@ class RegisterApiView(generics.GenericAPIView):
                 )
                 msg.send()
             except Exception as e:
-                return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email}, status.HTTP_201_CREATED)
+                return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email, "otp": otp_code}, status.HTTP_201_CREATED)
 
-            return api_response(True, "Verification code sent to your email.", {"email": user.email}, status.HTTP_201_CREATED)
+            return api_response(True, "Verification code sent to your email.", {"email": user.email, "otp": otp_code}, status.HTTP_201_CREATED)
 
         except Exception as e:
             return api_response(False, "Internal server error during registration.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
