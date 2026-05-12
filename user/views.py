@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.shortcuts import get_object_or_404
-from drf_yasg import openapi 
+from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -35,14 +35,15 @@ from rest_framework.response import Response
 import time
 import math
 
+
 class CustomPagination(PageNumberPagination):
-    page_size = 10 
+    page_size = 10
 
     def get_paginated_response(self, data):
         total_count = self.page.paginator.count
         page_size = self.get_page_size(self.request)
         total_pages = math.ceil(total_count / page_size) if page_size else 1
-        
+
         return Response({
             "code": 200,
             "success": True,
@@ -76,6 +77,7 @@ def api_response(success, message, data=None, status_code=status.HTTP_200_OK):
 
 # Register View
 
+
 class RegisterApiView(generics.GenericAPIView):
     serializer_class = RegistrationSerializer
     permission_classes = [AllowAny]
@@ -89,14 +91,17 @@ class RegisterApiView(generics.GenericAPIView):
 
         try:
             user = serializer.save()
-            profile, created = Profile.objects.get_or_create(user=user)
+            # ভেরিফাই করার আগে ইন-একটিভ করে দেওয়া হলো
+            user.is_active = False
+            user.save()
 
+            profile, created = Profile.objects.get_or_create(user=user)
             otp_code = generate_otp()
             profile.otp = otp_code
             profile.otp_created_at = timezone.now()
             profile.save()
 
-            # email sending logic
+            # ইমেইল লজিক আগের মতোই থাকবে...
             try:
                 msg = EmailMessage(
                     'Verify your email - Pipyrit',
@@ -105,15 +110,15 @@ class RegisterApiView(generics.GenericAPIView):
                     [user.email]
                 )
                 msg.send()
-            except Exception as e:
-                return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email, "otp": otp_code}, status.HTTP_201_CREATED)
+            except Exception:
+                return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email}, status.HTTP_201_CREATED)
 
-            return api_response(True, "Verification code sent to your email.", {"email": user.email, "otp": otp_code}, status.HTTP_201_CREATED)
+            return api_response(True, "Verification code sent to your email.", {"email": user.email}, status.HTTP_201_CREATED)
 
         except Exception as e:
-            return api_response(False, "Internal server error during registration.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return api_response(False, "Internal server error.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
 # Verify OTP View
+
 
 class VerifyOTPApiView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
@@ -121,6 +126,7 @@ class VerifyOTPApiView(generics.GenericAPIView):
 
     @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
+        # ... ওটিপি এবং ইউজার গেট লজিক আগের মতোই ...
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             error_msg = list(serializer.errors.values())[0][0]
@@ -128,31 +134,39 @@ class VerifyOTPApiView(generics.GenericAPIView):
 
         email = serializer.validated_data['email']
         otp = serializer.validated_data['otp']
-
         user = User.objects.filter(email=email).first()
+
         if not user:
-            return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
+            return api_response(False, "No account found.", None, status.HTTP_404_NOT_FOUND)
 
         profile = user.profile
-        if not profile.otp or (profile.otp_created_at + timedelta(minutes=5)) < timezone.now():
-            return api_response(False, "OTP has expired or invalid.", None, status.HTTP_400_BAD_REQUEST)
+        # এক্সপায়ারি চেক লজিক...
+        expiry_time = profile.otp_created_at + timedelta(minutes=5)
+        if timezone.now() > expiry_time:
+            return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
 
+        # ওটিপি ভেরিফিকেশন এবং ইউজার একটিভ করা
         if profile.otp == otp:
-            user.is_active = True
-            user.save()
+            # সরাসরি ডাটাবেসে আপডেট কমান্ড পাঠানো (সবচাইতে সেফ পদ্ধতি)
+            User.objects.filter(id=user.id).update(is_active=True)
+
+            # প্রোফাইল আপডেট
             profile.is_verified = True
-            profile.otp = None  
+            profile.otp = None
             profile.save()
-            
+
+            # টোকেন জেনারেশনের আগে ইউজার অবজেক্ট রিফ্রেশ করা
+            user.refresh_from_db()
+
+            # আপনার বর্তমান ফরম্যাট অনুযায়ী accessToken রিটার্ন
             refresh = RefreshToken.for_user(user)
-            data = {
-                "accessToken": str(refresh.access_token)
-            }
+            data = {"accessToken": str(refresh.access_token)}
             return api_response(True, "Otp verified successfully", data)
 
-        return api_response(False, "Invalid verification code. Please try again.", None, status.HTTP_400_BAD_REQUEST)
+        return api_response(False, "Invalid verification code.", None, status.HTTP_400_BAD_REQUEST)
 
 # Login View
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginAPIView(generics.GenericAPIView):
@@ -186,13 +200,15 @@ class LoginAPIView(generics.GenericAPIView):
             data = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
-                "user": UserSerializer(user, context={'request': request}).data  
+                "user": UserSerializer(user, context={'request': request}).data
             }
             return api_response(True, "Logged in successfully.", data)
         except Exception as e:
             return api_response(False, "Failed to generate tokens.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # 1. Forgot Password - Request OTP
+
+
 class ForgotPasswordView(generics.GenericAPIView):
     serializer_class = ForgotPasswordSerializer
     permission_classes = [AllowAny]
@@ -216,7 +232,8 @@ class ForgotPasswordView(generics.GenericAPIView):
         profile.otp_created_at = timezone.now()
         profile.save()
 
-        expires_at = (profile.otp_created_at + timedelta(minutes=5)).isoformat()
+        expires_at = (profile.otp_created_at +
+                      timedelta(minutes=5)).isoformat()
 
         try:
             msg = EmailMessage(
@@ -237,6 +254,7 @@ class ForgotPasswordView(generics.GenericAPIView):
         return api_response(True, f"OTP sent to your email:{email}", data)
 
 # 2. Verify OTP for Password Reset
+
 
 class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
     serializer_class = ForgotPasswordVerifySerializer
@@ -269,7 +287,7 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
 # 3. Set New Password (Authenticated via accessToken from previous step)
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
@@ -282,7 +300,7 @@ class SetNewPasswordView(generics.GenericAPIView):
         user = request.user
         new_password = serializer.validated_data.get('confirm_password')
 
-        # password update 
+        # password update
         user.set_password(new_password)
         user.save()
 
@@ -306,7 +324,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     serializer_class = AdminUserManagementSerializer
     permission_classes = [IsAdminUser]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['full_name', 'email'] 
+    search_fields = ['full_name', 'email']
     pagination_class = CustomPagination
 
     @swagger_auto_schema(tags=['Admin - User Management'])
@@ -374,7 +392,8 @@ class UserProfileViewSet(viewsets.GenericViewSet):
             instance.user.full_name = full_name
             instance.user.save()
 
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             data = serializer.data
@@ -404,6 +423,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
 
 # --- ADMIN PROFILE VIEWSET ---
 
+
 class AdminProfileViewSet(UserProfileViewSet):
     queryset = Profile.objects.all()
 
@@ -429,14 +449,14 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
     def list(self, request, *args, **kwargs):
         # --- 1. Top Cards and Status Calculation ---
         total_user = User.objects.filter(is_staff=False).count()
-        
+
         # New Registrations for the Current Month
         current_month = timezone.now().month
         new_registrations = User.objects.filter(
-            is_staff=False, 
+            is_staff=False,
             date_joined__month=current_month
         ).count()
-        
+
         # Total Revenue
         total_revenue = Transaction.objects.filter(
             status='completed'
@@ -455,19 +475,20 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
 
         # 12 Months List (According to Figma Jan-Dec)
         full_year_chart = []
-        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May',
+                       'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
         for i in range(1, 13):
             full_year_chart.append({
                 "month_index": i,
                 "month_name": month_names[i-1],
-                "total": float(stats_dict.get(i, 0)) # If no income, then 0.0
+                "total": float(stats_dict.get(i, 0))  # If no income, then 0.0
             })
 
         # --- 3. User List (Table) with Pagination Handling ---
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-        
+
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             # Safely extract pagination data
@@ -500,9 +521,6 @@ class AdminDashboardHomeViewSet(viewsets.GenericViewSet):
         }
 
         return api_response(True, "Dashboard data fetched successfully", response_data)
-    
-
-
 
 
 # --- 1. Mobile App API (User Section) ---
@@ -530,7 +548,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(tags=['9. Notifications - App'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.is_read = True # Click to mark as read
+        instance.is_read = True  # Click to mark as read
         instance.save()
         return api_response(True, "Notification details", self.get_serializer(instance).data)
 
@@ -540,14 +558,15 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         instance = self.get_object()
         instance.delete()
         return api_response(True, "Notification deleted successfully", None, status.HTTP_204_NO_CONTENT)
-    
+
     @swagger_auto_schema(tags=['9. Notifications - App'])
     @action(detail=False, methods=['get'], url_path='unread-count')
     def unread_count(self, request):
         """To show the red number on the bell icon"""
-        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        count = Notification.objects.filter(
+            recipient=request.user, is_read=False).count()
         return api_response(True, "Unread count fetched", {"unread_count": count})
-    
+
     @swagger_auto_schema(tags=['9. Notifications - App'])
     @action(detail=True, methods=['patch'], url_path='mark-read')
     def mark_as_read(self, request, pk=None):
@@ -604,7 +623,8 @@ class AdminNotificationViewSet(viewsets.GenericViewSet):
         if user_id:
             # Send to a specific user
             target_user = get_object_or_404(User, id=user_id)
-            Notification.objects.create(recipient=target_user, sender=request.user, notification_type=msg_type, message=msg_text)
+            Notification.objects.create(
+                recipient=target_user, sender=request.user, notification_type=msg_type, message=msg_text)
         else:
             # Sending to all users (Broadcast)
             users = User.objects.filter(is_staff=False)
@@ -614,3 +634,48 @@ class AdminNotificationViewSet(viewsets.GenericViewSet):
             Notification.objects.bulk_create(notifications)
 
         return api_response(True, "Notification(s) sent successfully")
+
+
+# --- Resend OTP API View ---
+
+class ResendOTPApiView(generics.GenericAPIView):
+    # এটি শুধু ইমেইল ইনপুট নেয়, তাই এটি ব্যবহার করা যায়
+    serializer_class = ForgotPasswordSerializer
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(tags=['1. Authentication'])
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return api_response(False, "Invalid email", serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        user = User.objects.filter(email=email).first()
+
+        if not user:
+            return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
+
+        # নতুন ওটিপি জেনারেশন
+        otp_code = generate_otp()
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.otp = otp_code
+        profile.otp_created_at = timezone.now()
+        profile.save()
+
+        # ইমেইল পাঠানো
+        try:
+            msg = EmailMessage(
+                'Resend Verification Code - Pipyrit',
+                f'Your new verification code is: {otp_code}. Valid for 5 minutes.',
+                settings.DEFAULT_FROM_EMAIL,
+                [email]
+            )
+            msg.send()
+        except Exception:
+            return api_response(False, "Failed to send email. Try again later.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        data = {
+            "email": email,
+            "expiresAt": (profile.otp_created_at + timedelta(minutes=5)).isoformat()
+        }
+        return api_response(True, "A new OTP has been sent to your email.", data)

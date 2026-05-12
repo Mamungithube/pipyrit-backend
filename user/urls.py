@@ -24,6 +24,8 @@ urlpatterns = [
          name='forgot-password-verify'),
     path('forgot-password/set-password/',
          SetNewPasswordView.as_view(), name='set-new-password'),
+
+     path('resend-otp/', ResendOTPApiView.as_view(), name='resend-otp'),
      
      path('', include(router.urls)),
          

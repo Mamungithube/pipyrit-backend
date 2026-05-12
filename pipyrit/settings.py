@@ -46,10 +46,6 @@ CSRF_TRUSTED_ORIGINS = get_env_list('CSRF_TRUSTED_ORIGINS')
 
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = get_env_list('ALLOWED_HOSTS', '')
-CORS_ALLOWED_ORIGINS = get_env_list('CORS_ALLOWED_ORIGINS')
-CSRF_TRUSTED_ORIGINS = get_env_list('CSRF_TRUSTED_ORIGINS')
-
 # Session settings
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
@@ -136,7 +132,7 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_TYPES': ('Bearer', ''),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
@@ -174,12 +170,12 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://0b8d-162-4-34-65.ngrok-free.app',
+    'DEFAULT_API_URL': 'https://0b20-162-4-34-66.ngrok-free.app',
     'SECURITY_DEFINITIONS': {
-        'Bearer': {
+        'JWT_Token': { 
             'type': 'apiKey',
             'name': 'Authorization',
-            'in': 'header'
+            'in': 'header',
         }
     },
     'USE_SESSION_AUTH': False,
