@@ -14,7 +14,11 @@ from .models import QuizQuestion, QuizOption, UserQuizResult
 from .serializers import QuizQuestionSerializer, UserQuizResultSerializer
 from user.views import api_response
 from user.views import CustomPagination
+from django.utils.translation import gettext_lazy as _
+from .ai_engine import generate_ai_quiz, generate_ai_interview
+from drf_yasg import openapi
 
+from django.shortcuts import get_object_or_404
 """------------------------------ Quiz Views -----------------------------"""
 
 
@@ -28,20 +32,49 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
         return QuizQuestion.objects.all()
 
-    @swagger_auto_schema(tags=['4. Quiz - App'])
+    @swagger_auto_schema(
+        tags=['4. Quiz - App'],
+        manual_parameters=[openapi.Parameter('case_type', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True)]
+    )
     def list(self, request, *args, **kwargs):
-        queryset = list(self.get_queryset())
-        count = min(len(queryset), 25)
-        random_questions = random.sample(queryset, count)
+        case_type = request.query_params.get('case_type')
+        
+        # AI থেকে প্রশ্ন জেনারেট এবং ডাটাবেসে সেভ (আপনার আগের লজিক)
+        ai_data = generate_ai_quiz(case_type)
+        questions = []
+        q_ids = []
+        
+        for item in ai_data['question_set']:
+            q = QuizQuestion.objects.create(
+                text=item['question'], hint=item['hint'], explanation=item['explanation']
+            )
+            for idx, opt_text in enumerate(item['options']):
+                QuizOption.objects.create(
+                    question=q, text=opt_text, is_correct=(idx == item['correct_answer_index'])
+                )
+            questions.append(q)
+            q_ids.append(q.id)
 
-        serializer = self.get_serializer(random_questions, many=True)
-        return api_response(True, f"{len(random_questions)} Questions fetched", serializer.data)
+        # একটি "Session/Result" আইডি তৈরি করা (ফ্রন্টএন্ড সাবমিট না করলেও এটি দরকার)
+        result = UserQuizResult.objects.create(
+            user=request.user, total_questions=len(questions), 
+            correct_answers=0, total_points_earned=0
+        )
+        result.questions.set(q_ids) # ওই ২৫টি প্রশ্ন সেভ করে রাখা হলো
+
+        serializer = self.get_serializer(questions, many=True)
+        
+        # রেসপন্সে আইডি এবং প্রশ্ন—দুইটাই পাঠানো হচ্ছে
+        return api_response(True, "Quiz started", {
+            "result_id": result.id, # এই আইডিটি দিয়ে শেষের লিস্ট পাবেন
+            "questions": serializer.data
+        })
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return api_response(True, "Question details fetched", serializer.data)
+        return api_response(True, _("Question details fetched"), serializer.data)
 
     @swagger_auto_schema(
         tags=['4. Quiz - App'],
@@ -65,7 +98,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
     def submit_quiz(self, request):
         user_answers = request.data.get('answers', [])
         if not user_answers:
-            return api_response(False, "No answers provided", None, status.HTTP_400_BAD_REQUEST)
+            return api_response(False, _("No answers provided"), None, status.HTTP_400_BAD_REQUEST)
 
         total_earned_points = 0
         correct_answers_count = 0
@@ -107,22 +140,57 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
             "total_profile_points": profile.total_points
         }
 
-        return api_response(True, "Quiz submitted and points calculated", data)
+        return api_response(True, _("Quiz submitted and points calculated"), data)
+
+    @swagger_auto_schema(
+        tags=['4. Quiz - App'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
+            }
+        )
+    )
+    @action(detail=False, methods=['post'], url_path='save-score')
+    def save_score(self, request):
+        correct = request.data.get('correct_answers', 0)
+        total = request.data.get('total_questions', 25)
+        points = request.data.get('earned_points', 0)
+
+        result = UserQuizResult.objects.create(
+            user=request.user,
+            total_questions=total,
+            correct_answers=correct,
+            total_points_earned=points
+        )
+
+        # ইউজারের মেইন প্রোফাইলে পয়েন্ট যোগ করা
+        profile = request.user.profile
+        profile.total_points += points
+        profile.save()
+
+        return api_response(True, "Quiz result saved", {"id": result.id})
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
-    @action(detail=True, methods=['get'], url_path='questions-answers')
     def questions_answers(self, request, pk=None):
-
-        instance = self.get_object()
-
-        questions = QuizQuestion.objects.prefetch_related('options').all()
+        """
+        GET /api/quizzes/quick-quiz/{id}/questions-answers/
+        এখানে {id} হলো UserQuizResult এর আইডি (যা হিস্ট্রি থেকে পাওয়া যাবে)
+        """
+        instance = get_object_or_404(UserQuizResult, id=pk, user=request.user)
+        questions = instance.questions.all()
+        
         data = []
         for q in questions:
-            correct_option = q.options.filter(is_correct=True).first()
+            correct_opt = q.options.filter(is_correct=True).first()
             data.append({
                 "question": q.text,
-                "answer": correct_option.text if correct_option else "N/A"
+                "answer": correct_opt.text if correct_opt else "N/A",
+                "explanation": q.explanation
             })
+        
         return api_response(True, "Questions and answers fetched", data)
 
 
@@ -145,7 +213,7 @@ class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return api_response(True, "Quiz result details fetched", serializer.data)
+        return api_response(True, _("Quiz result details fetched"), serializer.data)
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     @action(detail=True, methods=['get'], url_path='questions-answers')
@@ -160,7 +228,7 @@ class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
                 "question": q.text,
                 "answer": correct_option.text if correct_option else "N/A"
             })
-        return api_response(True, "Questions and answers fetched", data)
+        return api_response(True, _("Questions and answers fetched"), data)
 
 # ---------------------- ADMIN DASHBOARD APIs -----------------------
 
@@ -210,7 +278,7 @@ class InterviewCategoryListView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return api_response(True, "Interview categories fetched", serializer.data)
+        return api_response(True, _("Interview categories fetched"), serializer.data)
 
 
 class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
@@ -235,19 +303,41 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(
         tags=['5. Interview - App'],
         manual_parameters=[
-            openapi.Parameter('category_id', openapi.IN_QUERY,
-                              type=openapi.TYPE_INTEGER, required=True),
-            openapi.Parameter('level', openapi.IN_QUERY,
-                              type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter('category', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter('level', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True),
         ]
     )
     def list(self, request, *args, **kwargs):
-        queryset = list(self.get_queryset())
-        count = min(len(queryset), 25)
-        random_questions = random.sample(queryset, count)
-        serializer = self.get_serializer(random_questions, many=True)
-        return api_response(True, f"{len(random_questions)} Questions fetched", serializer.data)
-    
+        category = request.query_params.get('category')
+        level = request.query_params.get('level')
+
+        try:
+            ai_data = generate_ai_interview(category, level)
+            questions = []
+            
+            for item in ai_data['question_set']:
+                iq = InterviewQuestion.objects.create(
+                    category_id=1, # আপনার ক্যাটাগরি লজিক অনুযায়ী
+                    text=item['question'], 
+                    level=level,
+                    hint=item['hint'],
+                    explanation=item['explanation'],
+                    example=item['example']
+                )
+                for idx, opt_text in enumerate(item['options']):
+                    InterviewOption.objects.create(
+                        question=iq, 
+                        text=opt_text, 
+                        is_correct=(idx == item['correct_response_index'])
+                    )
+                questions.append(iq)
+                
+            serializer = self.get_serializer(questions, many=True)
+            return api_response(True, f"AI Interview generated for {category}", serializer.data)
+            
+        except Exception as e:
+            return api_response(False, f"AI Error: {str(e)}", None, 500)
+
     @swagger_auto_schema(tags=['5. Interview - App'])
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
@@ -315,7 +405,45 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         profile.confidence_level = confidence  # The latest confidence will be saved.
         profile.save()
 
-        return api_response(True, "Interview submitted", InterviewResultSerializer(result).data)
+        return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
+    
+    @swagger_auto_schema(
+        tags=['5. Interview - App'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'category_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'confidence_level': openapi.Schema(type=openapi.TYPE_INTEGER),
+            }
+        )
+    )
+    @action(detail=False, methods=['post'], url_path='save-score')
+    def save_score(self, request):
+        cat_id = request.data.get('category_id')
+        correct = request.data.get('correct_answers', 0)
+        total = request.data.get('total_questions', 25)
+        points = request.data.get('earned_points', 0)
+        confidence = request.data.get('confidence_level', 0)
+
+        result = InterviewResult.objects.create(
+            user=request.user,
+            category_id=cat_id,
+            total_questions=total,
+            correct_answers=correct,
+            total_points_earned=points,
+            confidence_level=confidence
+        )
+
+        # প্রোফাইল আপডেট
+        profile = request.user.profile
+        profile.total_points += points
+        profile.confidence_level = confidence
+        profile.save()
+
+        return api_response(True, "Interview result saved", {"id": result.id})
 
 
 class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):
@@ -348,7 +476,7 @@ class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):
                 "question": q.text,
                 "answer": correct_option.text if correct_option else "N/A"
             })
-        return api_response(True, "Interview Q&A fetched", data)
+        return api_response(True, _("Interview Q&A fetched"), data)
 # --- ADMIN APIs ---
 
 
@@ -365,19 +493,19 @@ class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        return api_response(True, "Questions fetched", self.get_serializer(queryset, many=True).data)
+        return api_response(True, _("Questions fetched"), self.get_serializer(queryset, many=True).data)
 
     @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return api_response(True, "Question and Options created", serializer.data, status.HTTP_201_CREATED)
-        return api_response(False, "Failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+            return api_response(True, _("Question and Options created"), serializer.data, status.HTTP_201_CREATED)
+        return api_response(False, _("Failed"), serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
     def retrieve(self, request, *args, **kwargs):
-        return api_response(True, "Details fetched", self.get_serializer(self.get_object()).data)
+        return api_response(True, _("Details fetched"), self.get_serializer(self.get_object()).data)
 
     @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
     def update(self, request, *args, **kwargs):
@@ -385,13 +513,13 @@ class AdminInterviewQuestionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(self.get_object(), data=request.data, partial=partial)
         if serializer.is_valid():
             serializer.save()
-            return api_response(True, "Updated successfully", serializer.data)
-        return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+            return api_response(True, _("Updated successfully"), serializer.data)
+        return api_response(False, _("Update failed"), serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['Admin - 5. Interview Management'])
     def destroy(self, request, *args, **kwargs):
         self.get_object().delete()
-        return api_response(True, "Deleted successfully", None, status.HTTP_204_NO_CONTENT)
+        return api_response(True, _("Deleted successfully"), None, status.HTTP_204_NO_CONTENT)
 
 
 # quizzes/views.py
@@ -406,15 +534,15 @@ class AdminInterviewCategoryViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return api_response(True, "Categories fetched", serializer.data)
+        return api_response(True, _("Categories fetched"), serializer.data)
 
     @swagger_auto_schema(tags=['Admin - Interview Management'])
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return api_response(True, "Category added successfully", serializer.data, status.HTTP_201_CREATED)
-        return api_response(False, "Add failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
+            return api_response(True, _("Category added successfully"), serializer.data, status.HTTP_201_CREATED)
+        return api_response(False, _("Add failed"), serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['Admin - Interview Management'])
     def retrieve(self, request, *args, **kwargs):
@@ -432,4 +560,4 @@ class AdminInterviewCategoryViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
-        return api_response(True, "Category deleted successfully", None, status.HTTP_204_NO_CONTENT)
+        return api_response(True, _("Category deleted successfully"), None, status.HTTP_204_NO_CONTENT)

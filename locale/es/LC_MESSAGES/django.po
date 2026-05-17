@@ -1,0 +1,100 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-17 09:42+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? "
+"1 : 2;\n"
+#: quizzes/views.py:38 quizzes/views.py:249
+#, python-brace-format
+msgid "{count} Questions fetched"
+msgstr ""
+
+#: quizzes/views.py:44
+msgid "Question details fetched"
+msgstr ""
+
+#: quizzes/views.py:68
+msgid "No answers provided"
+msgstr ""
+
+#: quizzes/views.py:110
+msgid "Quiz submitted and points calculated"
+msgstr ""
+
+#: quizzes/views.py:126 quizzes/views.py:163
+msgid "Questions and answers fetched"
+msgstr ""
+
+#: quizzes/views.py:148
+msgid "Quiz result details fetched"
+msgstr ""
+
+#: quizzes/views.py:213
+msgid "Interview categories fetched"
+msgstr ""
+
+#: quizzes/views.py:318
+msgid "Interview submitted"
+msgstr ""
+
+#: quizzes/views.py:351
+msgid "Interview Q&A fetched"
+msgstr ""
+
+#: quizzes/views.py:368
+msgid "Questions fetched"
+msgstr ""
+
+#: quizzes/views.py:375
+msgid "Question and Options created"
+msgstr ""
+
+#: quizzes/views.py:376
+msgid "Failed"
+msgstr ""
+
+#: quizzes/views.py:380
+msgid "Details fetched"
+msgstr ""
+
+#: quizzes/views.py:388
+msgid "Updated successfully"
+msgstr ""
+
+#: quizzes/views.py:389
+msgid "Update failed"
+msgstr ""
+
+#: quizzes/views.py:394
+msgid "Deleted successfully"
+msgstr ""
+
+#: quizzes/views.py:409
+msgid "Categories fetched"
+msgstr ""
+
+#: quizzes/views.py:416
+msgid "Category added successfully"
+msgstr ""
+
+#: quizzes/views.py:417
+msgid "Add failed"
+msgstr ""
+
+#: quizzes/views.py:435
+msgid "Category deleted successfully"
+msgstr ""

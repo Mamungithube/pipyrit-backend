@@ -10,6 +10,8 @@ WORKDIR /app
 
 # Install system dependencies for PostgreSQL and Pillow
 RUN apt-get update && apt-get install -y \
+    gettext \
+    libpq-dev \
     build-essential \
     libpq-dev \
     libjpeg-dev \

@@ -70,7 +70,12 @@ X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
 
 # Application definition
 
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
+
 INSTALLED_APPS = [
+    'modeltranslation',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -146,7 +151,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -170,7 +176,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://0b20-162-4-34-66.ngrok-free.app',
+    # 'DEFAULT_API_URL': 'https://0b20-162-4-34-66.ngrok-free.app',
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',
@@ -210,13 +216,6 @@ DATABASES = {
     }
 }
 
-
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE     = 'UTC'
-USE_I18N      = True
-USE_TZ        = True
-
-
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -238,9 +237,15 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
+LANGUAGES = (
+    ('en', 'English'),
+    ('es', 'Spanish'),
+    ('ht', 'Haitian Creole'), 
+)
 
 LANGUAGE_CODE = 'en-us'
-
+MODELTRANSLATION_DEFAULT_LANGUAGE = 'en'
+MODELTRANSLATION_LANGUAGES = ('en', 'es', 'ht')
 TIME_ZONE = 'UTC'
 
 USE_I18N = True

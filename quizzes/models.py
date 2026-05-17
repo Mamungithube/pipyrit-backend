@@ -25,6 +25,7 @@ class QuizQuestion(models.Model):
     audio_file = models.FileField(upload_to='quiz_audio/', blank=True, null=True)
     hint = models.TextField(blank=True, null=True)
     points = models.IntegerField(default=1)
+    explanation = models.TextField(blank=True, null=True) 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -42,7 +43,7 @@ class QuizQuestion(models.Model):
 
 class QuizOption(models.Model):
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE, related_name='options')
-    text = models.CharField(max_length=255)
+    text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
 
     def __str__(self):
@@ -77,6 +78,8 @@ class InterviewQuestion(models.Model):
     hint = models.TextField(blank=True, null=True) 
     level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
     points = models.IntegerField(default=25) 
+    explanation = models.TextField(blank=True, null=True)
+    example = models.TextField(blank=True, null=True) 
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -95,7 +98,7 @@ class InterviewQuestion(models.Model):
 
 class InterviewOption(models.Model):
     question = models.ForeignKey(InterviewQuestion, on_delete=models.CASCADE, related_name='options')
-    text = models.CharField(max_length=255)
+    text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
 
     def __str__(self):

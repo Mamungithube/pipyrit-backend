@@ -4,8 +4,10 @@ certifi==2026.4.22
 charset-normalizer==3.4.7
 click==8.1.8
 colorama==0.4.6
+dj-database-url==3.1.2
 Django==5.2.13
 django-cors-headers==4.9.0
+django-modeltranslation==0.20.3
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
@@ -31,4 +33,4 @@ typing_extensions==4.15.0
 tzdata==2026.1
 uritemplate==4.2.0
 urllib3==2.6.3
-dj-database-url
+google-generativeai

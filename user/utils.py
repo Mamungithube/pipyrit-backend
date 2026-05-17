@@ -13,3 +13,5 @@ def create_notification(recipient, msg_type, message, sender=None):
         message=message,
         is_read=False # ডিফল্টভাবে আনরিড থাকবে
     )
+
+
