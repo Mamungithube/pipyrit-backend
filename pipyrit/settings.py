@@ -176,11 +176,6 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-<<<<<<< Updated upstream
-    # 'DEFAULT_API_URL': 'https://0b20-162-4-34-66.ngrok-free.app',
-=======
-    'DEFAULT_API_URL': 'https://da71-162-4-34-66.ngrok-free.app',
->>>>>>> Stashed changes
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',
