@@ -3,7 +3,7 @@ from .models import DeviceToken, User, Profile, Notification
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    profile_picture = serializers.SerializerMethodField()
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
     
     def get_profile_picture(self, obj):
         request = self.context.get('request')

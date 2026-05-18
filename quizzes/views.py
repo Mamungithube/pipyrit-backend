@@ -1,3 +1,5 @@
+import time
+
 from .serializers import (
     InterviewCategorySerializer, InterviewQuestionSerializer,
     InterviewResultSerializer
@@ -5,6 +7,7 @@ from .serializers import (
 from .models import InterviewCategory, InterviewQuestion, InterviewOption, InterviewResult
 from rest_framework import viewsets, status, generics
 import random
+from rest_framework.response import Response
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -19,6 +22,7 @@ from .ai_engine import generate_ai_quiz, generate_ai_interview
 from drf_yasg import openapi
 
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 """------------------------------ Quiz Views -----------------------------"""
 
 
@@ -32,43 +36,33 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
         return QuizQuestion.objects.all()
 
-    @swagger_auto_schema(
-        tags=['4. Quiz - App'],
-        manual_parameters=[openapi.Parameter('case_type', openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True)]
-    )
+    @swagger_auto_schema(tags=['4. Quiz - App'])
     def list(self, request, *args, **kwargs):
         case_type = request.query_params.get('case_type')
-        
-        # AI থেকে প্রশ্ন জেনারেট এবং ডাটাবেসে সেভ (আপনার আগের লজিক)
-        ai_data = generate_ai_quiz(case_type)
-        questions = []
-        q_ids = []
-        
-        for item in ai_data['question_set']:
-            q = QuizQuestion.objects.create(
-                text=item['question'], hint=item['hint'], explanation=item['explanation']
-            )
-            for idx, opt_text in enumerate(item['options']):
-                QuizOption.objects.create(
-                    question=q, text=opt_text, is_correct=(idx == item['correct_answer_index'])
-                )
-            questions.append(q)
-            q_ids.append(q.id)
+        try:
+            ai_data = generate_ai_quiz(case_type)
+            questions = []
+            q_ids = []
+            for item in ai_data['question_set']:
+                q = QuizQuestion.objects.create(text=item['question'], hint=item['hint'], explanation=item['explanation'])
+                for idx, opt_text in enumerate(item['options']):
+                    QuizOption.objects.create(question=q, text=opt_text, is_correct=(idx == item['correct_answer_index']))
+                questions.append(q)
+                q_ids.append(q.id)
 
-        # একটি "Session/Result" আইডি তৈরি করা (ফ্রন্টএন্ড সাবমিট না করলেও এটি দরকার)
-        result = UserQuizResult.objects.create(
-            user=request.user, total_questions=len(questions), 
-            correct_answers=0, total_points_earned=0
-        )
-        result.questions.set(q_ids) # ওই ২৫টি প্রশ্ন সেভ করে রাখা হলো
+            # আইডি জেনারেট করে ডাটা এর ভেতরে রাখা হলো (আগের মতো)
+            result = UserQuizResult.objects.create(user=request.user, total_questions=len(questions), correct_answers=0, total_points_earned=0)
+            result.questions.set(q_ids)
 
-        serializer = self.get_serializer(questions, many=True)
-        
-        # রেসপন্সে আইডি এবং প্রশ্ন—দুইটাই পাঠানো হচ্ছে
-        return api_response(True, "Quiz started", {
-            "result_id": result.id, # এই আইডিটি দিয়ে শেষের লিস্ট পাবেন
-            "questions": serializer.data
-        })
+            serializer = self.get_serializer(questions, many=True)
+            
+            # আপনার আগের একদম অরিজিনাল ফরম্যাট
+            return api_response(True, "Quiz started", {
+                "result_id": result.id, 
+                "questions": serializer.data
+            })
+        except Exception as e:
+            return api_response(False, f"AI Error: {str(e)}", None, 500)
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def retrieve(self, request, *args, **kwargs):
@@ -147,31 +141,26 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
+                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID received from GET /quick-quiz/"), # এটি যোগ করুন
                 'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
-            }
+            },
+            required=['result_id'] # আইডি পাঠানো বাধ্যতামূলক
         )
     )
     @action(detail=False, methods=['post'], url_path='save-score')
     def save_score(self, request):
-        correct = request.data.get('correct_answers', 0)
-        total = request.data.get('total_questions', 25)
-        points = request.data.get('earned_points', 0)
-
-        result = UserQuizResult.objects.create(
-            user=request.user,
-            total_questions=total,
-            correct_answers=correct,
-            total_points_earned=points
-        )
-
-        # ইউজারের মেইন প্রোফাইলে পয়েন্ট যোগ করা
+        res_id = request.data.get('result_id')
+        result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
+        result.correct_answers = request.data.get('correct_answers', 0)
+        result.total_points_earned = request.data.get('earned_points', 0)
+        result.save()
+        
         profile = request.user.profile
-        profile.total_points += points
+        profile.total_points += result.total_points_earned
         profile.save()
-
-        return api_response(True, "Quiz result saved", {"id": result.id})
+        return api_response(True, "Quiz score saved", {"id": result.id})
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def questions_answers(self, request, pk=None):
@@ -308,33 +297,34 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         ]
     )
     def list(self, request, *args, **kwargs):
-        category = request.query_params.get('category')
+        category_name = request.query_params.get('category')
         level = request.query_params.get('level')
-
         try:
-            ai_data = generate_ai_interview(category, level)
+            ai_data = generate_ai_interview(category_name, level)
+            cat_obj, _ = InterviewCategory.objects.get_or_create(name=category_name)
             questions = []
-            
+            q_ids = []
             for item in ai_data['question_set']:
-                iq = InterviewQuestion.objects.create(
-                    category_id=1, # আপনার ক্যাটাগরি লজিক অনুযায়ী
-                    text=item['question'], 
-                    level=level,
-                    hint=item['hint'],
-                    explanation=item['explanation'],
-                    example=item['example']
-                )
+                iq = InterviewQuestion.objects.create(category=cat_obj, text=item['question'], level=level, hint=item.get('hint', ''), explanation=item.get('explanation', ''), example=item.get('example', ''))
                 for idx, opt_text in enumerate(item['options']):
-                    InterviewOption.objects.create(
-                        question=iq, 
-                        text=opt_text, 
-                        is_correct=(idx == item['correct_response_index'])
-                    )
+                    InterviewOption.objects.create(question=iq, text=opt_text, is_correct=(idx == item['correct_response_index']))
                 questions.append(iq)
-                
+                q_ids.append(iq.id)
+
+            result = InterviewResult.objects.create(user=request.user, category=cat_obj, level=level, total_questions=len(questions), correct_answers=0, total_points_earned=0)
+            result.questions.set(q_ids)
+
             serializer = self.get_serializer(questions, many=True)
-            return api_response(True, f"AI Interview generated for {category}", serializer.data)
             
+            # এটি আপনার চাওয়া স্পেশাল ফরম্যাট: result_id ডাটার বাইরে
+            return Response({
+                "code": 200,
+                "success": True,
+                "message": "Interview generated",
+                "result_id": result.id,  # <--- ডাটা এর বাইরে
+                "timestamp": int(time.time()),
+                "data": serializer.data 
+            })
         except Exception as e:
             return api_response(False, f"AI Error: {str(e)}", None, 500)
 
@@ -412,12 +402,13 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                'category_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID received from GET /interview-process/"), # এটি যোগ করুন
                 'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'confidence_level': openapi.Schema(type=openapi.TYPE_INTEGER),
-            }
+            },
+            required=['result_id'] # আইডি পাঠানো বাধ্যতামূলক
         )
     )
     @action(detail=False, methods=['post'], url_path='save-score')

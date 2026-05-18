@@ -208,7 +208,6 @@ class LoginAPIView(generics.GenericAPIView):
 
 # 1. Forgot Password - Request OTP
 
-
 class ForgotPasswordView(generics.GenericAPIView):
     serializer_class = ForgotPasswordSerializer
     permission_classes = [AllowAny]
@@ -379,6 +378,7 @@ class UserProfileViewSet(viewsets.GenericViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         data = serializer.data
+        
         data['full_name'] = request.user.full_name
         data['email'] = request.user.email
         return api_response(True, "Profile fetched", data)
