@@ -60,12 +60,23 @@ class CaseViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
         if serializer.is_valid():
             case_instance = serializer.save()
+            
+            # ১. নতুন ফাইল আসছে কি না চেক করা
             files = request.FILES.getlist('documents')
-            for f in files:
-                CaseDocument.objects.create(case=case_instance, file=f)
+            
+            if files:
+                # ২. ফিক্স: যদি নতুন ফাইল আপলোড করা হয়, তবে পুরানো সব ফাইল মুছে ফেলো
+                case_instance.documents.all().delete() 
+                
+                # ৩. এখন নতুন ফাইলগুলো সেভ করো
+                for f in files:
+                    CaseDocument.objects.create(case=case_instance, file=f)
+            
             return api_response(True, "Case updated successfully", serializer.data)
+        
         return api_response(False, "Update failed", serializer.errors, status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(tags=['3. Case Management'])

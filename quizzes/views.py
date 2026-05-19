@@ -141,26 +141,32 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID received from GET /quick-quiz/"), # এটি যোগ করুন
+                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID from GET /quick-quiz/"),
                 'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
             },
-            required=['result_id'] # আইডি পাঠানো বাধ্যতামূলক
+            required=['result_id']
         )
     )
     @action(detail=False, methods=['post'], url_path='save-score')
     def save_score(self, request):
         res_id = request.data.get('result_id')
+        correct = request.data.get('correct_answers', 0)
+        total = request.data.get('total_questions', 25)
+        points = request.data.get('earned_points', 0)
         result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
-        result.correct_answers = request.data.get('correct_answers', 0)
-        result.total_points_earned = request.data.get('earned_points', 0)
-        result.save()
         
+        result.correct_answers = correct
+        result.total_questions = total
+        result.total_points_earned = points
+        result.save()
+
         profile = request.user.profile
-        profile.total_points += result.total_points_earned
+        profile.total_points += points
         profile.save()
-        return api_response(True, "Quiz score saved", {"id": result.id})
+
+        return api_response(True, "Quiz score saved successfully", {"id": result.id})
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
     def questions_answers(self, request, pk=None):
@@ -181,7 +187,6 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
             })
         
         return api_response(True, "Questions and answers fetched", data)
-
 
 
 class QuizResultViewSet(viewsets.ReadOnlyModelViewSet):
@@ -255,7 +260,7 @@ class AdminQuizManagementViewSet(viewsets.ModelViewSet):
 """----------------------------- Interview Quiz -----------------------------"""
 
 
-# --- APP APIs (for users) ---
+# -------------------- APP APIs (for users) --------------------
 
 
 class InterviewCategoryListView(generics.ListAPIView):
@@ -315,13 +320,12 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
             result.questions.set(q_ids)
 
             serializer = self.get_serializer(questions, many=True)
-            
-            # এটি আপনার চাওয়া স্পেশাল ফরম্যাট: result_id ডাটার বাইরে
+
             return Response({
                 "code": 200,
                 "success": True,
                 "message": "Interview generated",
-                "result_id": result.id,  # <--- ডাটা এর বাইরে
+                "result_id": result.id, 
                 "timestamp": int(time.time()),
                 "data": serializer.data 
             })
@@ -392,7 +396,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += total_earned_points
-        profile.confidence_level = confidence  # The latest confidence will be saved.
+        profile.confidence_level = confidence 
         profile.save()
 
         return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
@@ -402,39 +406,38 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID received from GET /interview-process/"), # এটি যোগ করুন
+                'result_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID from GET /interview-process/"),
                 'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'confidence_level': openapi.Schema(type=openapi.TYPE_INTEGER),
             },
-            required=['result_id'] # আইডি পাঠানো বাধ্যতামূলক
+            required=['result_id']
         )
     )
     @action(detail=False, methods=['post'], url_path='save-score')
     def save_score(self, request):
-        cat_id = request.data.get('category_id')
+        res_id = request.data.get('result_id')
         correct = request.data.get('correct_answers', 0)
         total = request.data.get('total_questions', 25)
         points = request.data.get('earned_points', 0)
         confidence = request.data.get('confidence_level', 0)
 
-        result = InterviewResult.objects.create(
-            user=request.user,
-            category_id=cat_id,
-            total_questions=total,
-            correct_answers=correct,
-            total_points_earned=points,
-            confidence_level=confidence
-        )
+        # ভুল ফিক্স: জেনারেশনের সময় পাওয়া আইডিটি আপডেট করা
+        result = get_object_or_404(InterviewResult, id=res_id, user=request.user)
+        
+        result.correct_answers = correct
+        result.total_questions = total
+        result.total_points_earned = points
+        result.confidence_level = confidence
+        result.save()
 
-        # প্রোফাইল আপডেট
         profile = request.user.profile
         profile.total_points += points
         profile.confidence_level = confidence
         profile.save()
 
-        return api_response(True, "Interview result saved", {"id": result.id})
+        return api_response(True, "Interview score saved successfully", {"id": result.id})
 
 
 class InterviewResultViewSet(viewsets.ReadOnlyModelViewSet):

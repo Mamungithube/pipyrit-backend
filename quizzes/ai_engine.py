@@ -3,7 +3,7 @@ import json
 import re
 
 # আপনার API Key
-API_KEY = "AIzaSyAYvLUDAxyCeEkZmiu9hFLikljAeur1PW0"
+API_KEY = "AIzaSyDHBQW46lmRfOBIr8__mD6MEia9UzuMYHY"
 genai.configure(api_key=API_KEY)
 
 def get_working_model_name():

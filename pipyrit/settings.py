@@ -176,6 +176,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
+    'DEFAULT_API_URL': 'https://9e86-103-159-73-203.ngrok-free.app',
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',

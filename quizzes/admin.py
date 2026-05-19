@@ -8,13 +8,13 @@ class QuizOptionInline(admin.TabularInline):
 
 @admin.register(QuizQuestion)
 class QuizQuestionAdmin(admin.ModelAdmin):
-    list_display = ['text', 'points', 'created_at']
+    list_display = ['id','text', 'points', 'created_at']
     search_fields = ['text']
     inlines = [QuizOptionInline]
 
 @admin.register(UserQuizResult)
 class UserQuizResultAdmin(admin.ModelAdmin):
-    list_display = ['user', 'correct_answers', 'total_points_earned', 'created_at']
+    list_display = ['id','user', 'correct_answers', 'total_points_earned', 'created_at']
     list_filter = ['created_at']
     search_fields = ['user__email', 'user__full_name']
 
@@ -32,14 +32,14 @@ class InterviewOptionInline(admin.TabularInline):
 
 @admin.register(InterviewQuestion)
 class InterviewQuestionAdmin(admin.ModelAdmin):
-    list_display = ['text', 'category', 'level', 'points', 'created_at']
-    list_filter = ['category', 'level', 'created_at'] # ফিল্টার করার জন্য
+    list_display = ['id','text', 'category', 'level', 'points', 'created_at']
+    list_filter = ['category', 'level', 'created_at']
     search_fields = ['text']
     inlines = [InterviewOptionInline]
 
 @admin.register(InterviewResult)
 class InterviewResultAdmin(admin.ModelAdmin):
-    list_display = ['user', 'category', 'level', 'total_points_earned', 'confidence_level', 'created_at']
+    list_display = ['id','user', 'category', 'level', 'total_points_earned', 'confidence_level', 'created_at']
     list_filter = ['level', 'category', 'created_at']
     search_fields = ['user__email', 'user__full_name']
-    readonly_fields = ['created_at'] # রেজাল্ট যেন অ্যাডমিন এডিট না করতে পারে
+    readonly_fields = ['created_at'] 

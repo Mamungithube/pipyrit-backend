@@ -10,7 +10,7 @@ class CaseTypeAdmin(admin.ModelAdmin):
     ordering = ('name',)
 @admin.register(ImmigrationCase)
 class ImmigrationCaseAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'case_type', 'status', 'last_update')
+    list_display = ('id','title', 'user', 'case_type', 'status', 'last_update')
     search_fields = ('title', 'user__email', 'case_type__name')
     list_filter = ('case_type', 'status')
     ordering = ('-last_update',)
