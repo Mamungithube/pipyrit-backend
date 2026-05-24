@@ -176,7 +176,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://9e86-103-159-73-203.ngrok-free.app',
+    'DEFAULT_API_URL': 'https://5fef-103-159-73-203.ngrok-free.app',
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',
@@ -191,6 +191,9 @@ SWAGGER_SETTINGS = {
     'TAGS_SORTER': 'alpha',  
 }
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SECURE_SSL_REDIRECT = False
 WSGI_APPLICATION = 'pipyrit.wsgi.application'
 
 AUTH_USER_MODEL = 'user.User'

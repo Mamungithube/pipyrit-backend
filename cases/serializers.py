@@ -36,6 +36,9 @@ class CaseSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        if not instance.case_type:
-            representation['case_type_details'] = None
+        request = self.context.get('request')
+        if request:
+            # build_absolute_uri এখন থেকে https:// রিটার্ন করবে
+            if instance.file:
+                representation['file'] = request.build_absolute_uri(instance.file.url)
         return representation
