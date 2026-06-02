@@ -11,6 +11,14 @@ class CaseDocumentSerializer(serializers.ModelSerializer):
         model = CaseDocument
         fields = ['id', 'file', 'uploaded_at']
 
+    def to_representation(self, instance):
+        """ডকুমেন্টের ফাইলের পূর্ণাঙ্গ URL (https সহ) করার জন্য এটি সঠিক জায়গা"""
+        representation = super().to_representation(instance)
+        request = self.context.get('request')
+        if instance.file and request:
+            representation['file'] = request.build_absolute_uri(instance.file.url)
+        return representation
+
 class CaseSerializer(serializers.ModelSerializer):
 
     documents = CaseDocumentSerializer(many=True, read_only=True)
@@ -33,12 +41,3 @@ class CaseSerializer(serializers.ModelSerializer):
 
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
-
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        request = self.context.get('request')
-        if request:
-            # build_absolute_uri এখন থেকে https:// রিটার্ন করবে
-            if instance.file:
-                representation['file'] = request.build_absolute_uri(instance.file.url)
-        return representation

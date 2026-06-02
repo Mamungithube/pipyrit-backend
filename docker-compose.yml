@@ -44,5 +44,18 @@ services:
     depends_on:
       - db
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: pipyrit_ngrok
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=3EAWUZ56hcxWg7zmp3gNLxNUliJ_3yistqHLEVTATE1KbK3tv
+    command:
+      - "http"
+      - "web:8000"
+      - "--url=dismay-referee-amniotic.ngrok-free.dev"
+    depends_on:
+      - web
+
 volumes:
   postgres_data:

@@ -176,7 +176,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://5fef-103-159-73-203.ngrok-free.app',
+    'DEFAULT_API_URL': 'https://enzo-undeluded-ike.ngrok-free.dev',
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',
