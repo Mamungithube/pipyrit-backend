@@ -176,7 +176,7 @@ TEMPLATES = [
 ]
 
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://enzo-undeluded-ike.ngrok-free.dev',
+    'DEFAULT_API_URL': 'dismay-referee-amniotic.ngrok-free.dev',
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
             'type': 'apiKey',
