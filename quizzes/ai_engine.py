@@ -1,9 +1,11 @@
+from os import environ
+
 import google.generativeai as genai
 import json
 import re
 
-# আপনার API Key
-API_KEY = "AIzaSyDHBQW46lmRfOBIr8__mD6MEia9UzuMYHY"
+
+API_KEY = environ.get("GENAI_API_KEY")  
 genai.configure(api_key=API_KEY)
 
 def get_working_model_name():
