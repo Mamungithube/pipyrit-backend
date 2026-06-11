@@ -1,3 +1,5 @@
+import os
+
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import permissions
@@ -17,7 +19,7 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
-   url='https://server.pipyritimmigration.com/',
+   url=os.getenv('SWAGGER_API_URL', 'http://127.0.0.1:8000'),
 )
 
 
