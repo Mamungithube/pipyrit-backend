@@ -179,7 +179,7 @@ SWAGGER_SETTINGS = {
     "DEFAULT_API_URL": os.environ.get("SWAGGER_API_URL", "http://127.0.0.1:8000"),
     'SECURITY_DEFINITIONS': {
         'JWT_Token': { 
-            'type': 'apiKey',
+            'type': 'apiKey Bearer',
             'name': 'Authorization',
             'in': 'header',
         }
