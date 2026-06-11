@@ -12,11 +12,12 @@ schema_view = get_schema_view(
    openapi.Info(
       title="Pipyrit API",
       default_version='v1',
-      description="Pipyrit Project API Documentation",
+      description="Pipyrit API Documentation",
       contact=openapi.Contact(email="dev.mamun50@gmail.com"),
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
+   url='https://server.pipyritimmigration.com/',
 )
 
 
