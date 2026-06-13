@@ -91,7 +91,6 @@ class RegisterApiView(generics.GenericAPIView):
 
         try:
             user = serializer.save()
-            # ভেরিফাই করার আগে ইন-একটিভ করে দেওয়া হলো
             user.is_active = False
             user.save()
 
@@ -101,7 +100,6 @@ class RegisterApiView(generics.GenericAPIView):
             profile.otp_created_at = timezone.now()
             profile.save()
 
-            # ইমেইল লজিক আগের মতোই থাকবে...
             try:
                 msg = EmailMessage(
                     'Verify your email - Pipyrit',
@@ -117,8 +115,9 @@ class RegisterApiView(generics.GenericAPIView):
 
         except Exception as e:
             return api_response(False, "Internal server error.", {"detail": str(e)}, status.HTTP_500_INTERNAL_SERVER_ERROR)
-# Verify OTP View
 
+
+# Verify OTP View
 
 class VerifyOTPApiView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
@@ -126,7 +125,6 @@ class VerifyOTPApiView(generics.GenericAPIView):
 
     @swagger_auto_schema(tags=['1. Authentication'])
     def post(self, request):
-        # ... ওটিপি এবং ইউজার গেট লজিক আগের মতোই ...
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             error_msg = list(serializer.errors.values())[0][0]
@@ -140,33 +138,27 @@ class VerifyOTPApiView(generics.GenericAPIView):
             return api_response(False, "No account found.", None, status.HTTP_404_NOT_FOUND)
 
         profile = user.profile
-        # এক্সপায়ারি চেক লজিক...
         expiry_time = profile.otp_created_at + timedelta(minutes=5)
         if timezone.now() > expiry_time:
             return api_response(False, "OTP has expired.", None, status.HTTP_400_BAD_REQUEST)
 
-        # ওটিপি ভেরিফিকেশন এবং ইউজার একটিভ করা
         if profile.otp == otp:
-            # সরাসরি ডাটাবেসে আপডেট কমান্ড পাঠানো (সবচাইতে সেফ পদ্ধতি)
             User.objects.filter(id=user.id).update(is_active=True)
 
-            # প্রোফাইল আপডেট
             profile.is_verified = True
             profile.otp = None
             profile.save()
 
-            # টোকেন জেনারেশনের আগে ইউজার অবজেক্ট রিফ্রেশ করা
             user.refresh_from_db()
 
-            # আপনার বর্তমান ফরম্যাট অনুযায়ী accessToken রিটার্ন
             refresh = RefreshToken.for_user(user)
             data = {"accessToken": str(refresh.access_token)}
             return api_response(True, "Otp verified successfully", data)
 
         return api_response(False, "Invalid verification code.", None, status.HTTP_400_BAD_REQUEST)
 
-# Login View
 
+# Login View
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginAPIView(generics.GenericAPIView):
@@ -639,7 +631,6 @@ class AdminNotificationViewSet(viewsets.GenericViewSet):
 # --- Resend OTP API View ---
 
 class ResendOTPApiView(generics.GenericAPIView):
-    # এটি শুধু ইমেইল ইনপুট নেয়, তাই এটি ব্যবহার করা যায়
     serializer_class = ForgotPasswordSerializer
     permission_classes = [AllowAny]
 
@@ -655,7 +646,6 @@ class ResendOTPApiView(generics.GenericAPIView):
         if not user:
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
 
-        # নতুন ওটিপি জেনারেশন
         otp_code = generate_otp()
         profile, _ = Profile.objects.get_or_create(user=user)
         profile.otp = otp_code

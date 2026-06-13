@@ -6,5 +6,4 @@ class UserConfig(AppConfig):
     name = 'user'
 
     def ready(self):
-        # এই লাইনটি সিগন্যালকে সচল করবে
         import user.signals

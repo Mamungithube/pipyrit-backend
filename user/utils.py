@@ -11,7 +11,7 @@ def create_notification(recipient, msg_type, message, sender=None):
         sender=sender,
         notification_type=msg_type,
         message=message,
-        is_read=False # ডিফল্টভাবে আনরিড থাকবে
+        is_read=False
     )
 
 
