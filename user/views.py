@@ -681,8 +681,8 @@ class CustomTokenRefreshView(TokenRefreshView):
         
         if response.status_code == status.HTTP_200_OK:
             data = {
-                "accessToken": response.data.get('access'),
-                "refreshToken": response.data.get('refresh') 
+                "access": response.data.get('access'),
+                "refresh": response.data.get('refresh') 
             }
             return api_response(True, "Token refreshed successfully", data)
         
