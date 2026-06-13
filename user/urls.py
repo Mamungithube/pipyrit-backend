@@ -26,6 +26,8 @@ urlpatterns = [
          SetNewPasswordView.as_view(), name='set-new-password'),
 
      path('resend-otp/', ResendOTPApiView.as_view(), name='resend-otp'),
+
+     path('token/refresh/', CustomTokenRefreshView.as_view(), name='token-refresh'),
      
      path('', include(router.urls)),
          

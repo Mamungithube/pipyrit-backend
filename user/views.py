@@ -669,3 +669,21 @@ class ResendOTPApiView(generics.GenericAPIView):
             "expiresAt": (profile.otp_created_at + timedelta(minutes=5)).isoformat()
         }
         return api_response(True, "A new OTP has been sent to your email.", data)
+
+
+from rest_framework_simplejwt.views import TokenRefreshView
+
+class CustomTokenRefreshView(TokenRefreshView):
+
+    @swagger_auto_schema(tags=['1. Authentication'])
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        
+        if response.status_code == status.HTTP_200_OK:
+            data = {
+                "accessToken": response.data.get('access'),
+                "refreshToken": response.data.get('refresh') 
+            }
+            return api_response(True, "Token refreshed successfully", data)
+        
+        return api_response(False, "Invalid refresh token", response.data, status.HTTP_401_UNAUTHORIZED)
