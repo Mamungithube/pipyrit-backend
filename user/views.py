@@ -278,7 +278,7 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
 # 3. Set New Password (Authenticated via accessToken from previous step)
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(tags=['2. Authentication'])
     def post(self, request):
