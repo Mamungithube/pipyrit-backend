@@ -278,36 +278,38 @@ class ForgotPasswordVerifyOTPView(generics.GenericAPIView):
 # 3. Set New Password (Authenticated via accessToken from previous step)
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = SetNewPasswordSerializer
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-    @swagger_auto_schema(tags=['2. Authentication'])
+    @swagger_auto_schema(
+        tags=['2. Authentication'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'email': openapi.Schema(type=openapi.TYPE_STRING),
+                'new_password': openapi.Schema(type=openapi.TYPE_STRING),
+            },
+            required=['email', 'new_password']
+        )
+    )
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            error_msg = list(serializer.errors.values())[0][0]
-            return api_response(False, error_msg, serializer.errors, status.HTTP_400_BAD_REQUEST)
+        email = request.data.get('email')
+        new_password = request.data.get('new_password')
 
-        # Automatic user can be obtained from token
-        user = request.user
-        new_password = serializer.validated_data.get('confirm_password')
+        if not email or not new_password:
+            return api_response(False, "Email and new password are required.", None, status.HTTP_400_BAD_REQUEST)
 
-        # password update
+        user = User.objects.filter(email=email).first()
+        if not user:
+            return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
+
         user.set_password(new_password)
         user.save()
 
-        # Clearing OTP after password change (for security)
         profile, _ = Profile.objects.get_or_create(user=user)
         profile.otp = None
         profile.save()
 
-        # Generate new token (to keep logged in)
-        refresh = RefreshToken.for_user(user)
-        data = {
-            "accessToken": str(refresh.access_token),
-            "refreshToken": str(refresh)
-        }
-
-        return api_response(True, "Password changed successfully.", data)
+        return api_response(True, "Password changed successfully.", None)
 
 
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
