@@ -145,6 +145,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
                 'correct_answers': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'total_questions': openapi.Schema(type=openapi.TYPE_INTEGER),
                 'earned_points': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'confidence_level': openapi.Schema(type=openapi.TYPE_INTEGER),
             },
             required=['result_id']
         )
@@ -155,15 +156,18 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         correct = request.data.get('correct_answers', 0)
         total = request.data.get('total_questions', 25)
         points = request.data.get('earned_points', 0)
+        confidence = request.data.get('confidence_level', 0)
         result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
         
         result.correct_answers = correct
         result.total_questions = total
         result.total_points_earned = points
+        result.confidence_level = confidence
         result.save()
 
         profile = request.user.profile
         profile.total_points += points
+        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
         profile.save()
 
         return api_response(True, "Quiz score saved successfully", {"id": result.id})
@@ -396,7 +400,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += total_earned_points
-        profile.confidence_level = confidence 
+        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
         profile.save()
 
         return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
@@ -434,7 +438,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += points
-        profile.confidence_level = confidence
+        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
         profile.save()
 
         return api_response(True, "Interview score saved successfully", {"id": result.id})
