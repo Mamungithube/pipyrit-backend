@@ -84,11 +84,9 @@ class InterviewQuestion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # অটোমেটিক ইন্টারভিউ অডিও জেনারেট
         if not self.audio_file and self.text:
             from django.utils import timezone
             audio_content = generate_tts_audio(self.text)
-            # এখানেও টাইমস্ট্যাম্প লজিক আপডেট করা হয়েছে
             timestamp = int(timezone.now().timestamp())
             self.audio_file.save(f"interview_{timestamp}.mp3", audio_content, save=False)
         super().save(*args, **kwargs)
