@@ -6,7 +6,7 @@ from .serializers import (
     InterviewResultSerializer
 )
 from .models import InterviewCategory, InterviewQuestion, InterviewOption, InterviewResult
-from rest_framework import viewsets, status, generics
+from rest_framework import request, viewsets, status, generics
 import random
 from rest_framework.response import Response
 from rest_framework import viewsets, status
@@ -159,6 +159,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         total = request.data.get('total_questions', 25)
         points = request.data.get('earned_points', 0)
         confidence = request.data.get('confidence_level', 0)
+
         result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
 
         result.correct_answers = correct
@@ -169,23 +170,18 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += points
-    
+
         quiz_avg = UserQuizResult.objects.filter(
             user=request.user
         ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-
         interview_avg = InterviewResult.objects.filter(
             user=request.user
         ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-
         quiz_count = UserQuizResult.objects.filter(user=request.user).count()
         interview_count = InterviewResult.objects.filter(user=request.user).count()
 
         total_count = quiz_count + interview_count
-        if total_count > 0:
-            combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count
-        else:
-            combined_avg = 0
+        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
 
         profile.confidence_level = min(round(combined_avg), 100)
         profile.save()
@@ -420,7 +416,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += total_earned_points
-        
+
         quiz_avg = UserQuizResult.objects.filter(
             user=request.user
         ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
@@ -429,13 +425,13 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
         quiz_count = UserQuizResult.objects.filter(user=request.user).count()
         interview_count = InterviewResult.objects.filter(user=request.user).count()
-        
+
         total_count = quiz_count + interview_count
         combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
-        
+
         profile.confidence_level = min(round(combined_avg), 100)
         profile.save()
-        
+
         return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
     
     @swagger_auto_schema(
@@ -470,7 +466,19 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += points
-        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
+        quiz_avg = UserQuizResult.objects.filter(
+        user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+        interview_avg = InterviewResult.objects.filter(
+            user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
+        interview_count = InterviewResult.objects.filter(user=request.user).count()
+
+        total_count = quiz_count + interview_count
+        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
+
+        profile.confidence_level = min(round(combined_avg), 100)
         profile.save()
 
         return api_response(True, "Interview score saved successfully", {"id": result.id})
