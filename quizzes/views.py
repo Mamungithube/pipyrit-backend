@@ -1,3 +1,4 @@
+import profile
 import time
 
 from .serializers import (
@@ -23,6 +24,7 @@ from drf_yasg import openapi
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Avg
 """------------------------------ Quiz Views -----------------------------"""
 
 
@@ -158,7 +160,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         points = request.data.get('earned_points', 0)
         confidence = request.data.get('confidence_level', 0)
         result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
-        
+
         result.correct_answers = correct
         result.total_questions = total
         result.total_points_earned = points
@@ -167,7 +169,25 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += points
-        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
+    
+        quiz_avg = UserQuizResult.objects.filter(
+            user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+
+        interview_avg = InterviewResult.objects.filter(
+            user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+
+        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
+        interview_count = InterviewResult.objects.filter(user=request.user).count()
+
+        total_count = quiz_count + interview_count
+        if total_count > 0:
+            combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count
+        else:
+            combined_avg = 0
+
+        profile.confidence_level = min(round(combined_avg), 100)
         profile.save()
 
         return api_response(True, "Quiz score saved successfully", {"id": result.id})
@@ -400,9 +420,22 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         profile = request.user.profile
         profile.total_points += total_earned_points
-        profile.confidence_level = getattr(profile, 'confidence_level', 0) + confidence
+        
+        quiz_avg = UserQuizResult.objects.filter(
+            user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+        interview_avg = InterviewResult.objects.filter(
+            user=request.user
+        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
+        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
+        interview_count = InterviewResult.objects.filter(user=request.user).count()
+        
+        total_count = quiz_count + interview_count
+        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
+        
+        profile.confidence_level = min(round(combined_avg), 100)
         profile.save()
-
+        
         return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
     
     @swagger_auto_schema(
@@ -427,7 +460,6 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         points = request.data.get('earned_points', 0)
         confidence = request.data.get('confidence_level', 0)
 
-        # ভুল ফিক্স: জেনারেশনের সময় পাওয়া আইডিটি আপডেট করা
         result = get_object_or_404(InterviewResult, id=res_id, user=request.user)
         
         result.correct_answers = correct

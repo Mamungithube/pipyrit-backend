@@ -14,7 +14,7 @@ class QuizQuestionAdmin(admin.ModelAdmin):
 
 @admin.register(UserQuizResult)
 class UserQuizResultAdmin(admin.ModelAdmin):
-    list_display = ['id','user', 'correct_answers', 'total_points_earned', 'created_at']
+    list_display = ['id','user', 'correct_answers', 'total_points_earned','confidence_level', 'created_at']
     list_filter = ['created_at']
     search_fields = ['user__email', 'user__full_name']
 
