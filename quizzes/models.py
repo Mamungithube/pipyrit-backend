@@ -55,6 +55,7 @@ class UserQuizResult(models.Model):
     total_questions = models.IntegerField(default=25)
     correct_answers = models.IntegerField()
     total_points_earned = models.IntegerField()
+    confidence_level = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
