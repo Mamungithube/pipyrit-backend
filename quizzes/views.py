@@ -52,13 +52,11 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
                 questions.append(q)
                 q_ids.append(q.id)
 
-            # আইডি জেনারেট করে ডাটা এর ভেতরে রাখা হলো (আগের মতো)
             result = UserQuizResult.objects.create(user=request.user, total_questions=len(questions), correct_answers=0, total_points_earned=0)
             result.questions.set(q_ids)
 
             serializer = self.get_serializer(questions, many=True)
             
-            # আপনার আগের একদম অরিজিনাল ফরম্যাট
             return api_response(True, "Quiz started", {
                 "result_id": result.id, 
                 "questions": serializer.data
@@ -192,7 +190,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
     def questions_answers(self, request, pk=None):
         """
         GET /api/quizzes/quick-quiz/{id}/questions-answers/
-        এখানে {id} হলো UserQuizResult এর আইডি (যা হিস্ট্রি থেকে পাওয়া যাবে)
+        Here {ID} is the ID of the user quiz result (available from the history).
         """
         instance = get_object_or_404(UserQuizResult, id=pk, user=request.user)
         questions = instance.questions.all()

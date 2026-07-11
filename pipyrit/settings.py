@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     'quizzes',
     'content',
     'payment',
+    'core',
 
 
     # Third-party apps
@@ -287,3 +288,7 @@ STRIPE_PUBLIC_KEY=os.getenv('STRIPE_PUBLIC_KEY')
 STRIPE_SECRET_KEY=os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET=os.getenv('STRIPE_WEBHOOK_SECRET')
 SITE_URL=os.getenv('SITE_URL')
+
+
+DOCS_USERNAME = os.environ.get('DOCS_USERNAME', 'docsuser')
+DOCS_PASSWORD = os.environ.get('DOCS_PASSWORD', 'changeme')
