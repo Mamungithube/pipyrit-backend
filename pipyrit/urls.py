@@ -9,6 +9,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from core.views import api_root, health_check  
+from pipyrit.root_auth import basic_auth_required
 
 
 schema_view = get_schema_view(
@@ -34,7 +35,7 @@ urlpatterns = [
    path('api/payment/', include('payment.urls')),
 
     # Swagger Endpoints
-   path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+   path('swagger/', basic_auth_required(schema_view.with_ui('swagger', cache_timeout=0)), name='schema-swagger-ui'),
    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
