@@ -160,6 +160,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
 
         result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
 
+        old_points = result.total_points_earned
         result.correct_answers = correct
         result.total_questions = total
         result.total_points_earned = points
@@ -167,7 +168,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         result.save()
 
         profile = request.user.profile
-        profile.total_points += points
+        profile.total_points += (points - old_points)
 
         quiz_avg = UserQuizResult.objects.filter(
             user=request.user
@@ -456,6 +457,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         result = get_object_or_404(InterviewResult, id=res_id, user=request.user)
         
+        old_points = result.total_points_earned
         result.correct_answers = correct
         result.total_questions = total
         result.total_points_earned = points
@@ -463,7 +465,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         result.save()
 
         profile = request.user.profile
-        profile.total_points += points
+        profile.total_points += (points - old_points)
         quiz_avg = UserQuizResult.objects.filter(
         user=request.user
         ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
