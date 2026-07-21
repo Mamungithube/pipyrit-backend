@@ -81,18 +81,22 @@ class Profile(models.Model):
                     if img.height > 500 or img.width > 500 or file_size > 100 * 1024:
                         img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-                        if img.mode in ('RGBA', 'P'):
-                            img = img.convert('RGB')
+                        raw_name = self.profile_picture.name.split('/')[-1]
+                        ext = raw_name.rsplit('.', 1)[-1].lower() if '.' in raw_name else 'jpg'
 
                         output = BytesIO()
-                        img.save(output, format='JPEG', quality=85, optimize=True)
+                        if ext == 'png':
+                            img.save(output, format='PNG', optimize=True)
+                        elif ext == 'webp':
+                            img.save(output, format='WEBP', quality=85, optimize=True)
+                        else:
+                            if img.mode in ('RGBA', 'P'):
+                                img = img.convert('RGB')
+                            img.save(output, format='JPEG', quality=85, optimize=True)
+
                         output.seek(0)
-
-                        raw_name = self.profile_picture.name.split('/')[-1]
-                        filename = raw_name.rsplit('.', 1)[0] + '.jpg'
-
                         self.profile_picture.save(
-                            filename,
+                            raw_name,
                             ContentFile(output.read()),
                             save=False
                         )
