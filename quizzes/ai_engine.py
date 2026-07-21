@@ -85,6 +85,7 @@ def generate_ai_quiz(case_type: str) -> dict:
     1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
     2. Randomize Option Positions: Ensure the correct answer index ("correct_answer_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct answers in indices 0 (A) or 1 (B).
     3. Conciseness: Keep hints and explanations concise (maximum 1-2 short sentences) to minimize generation latency.
+    4. Objectivity & Validity: NEVER generate personal, candidate-specific, or subjective questions asking for private details (such as spouse's birthdate, spouse's nationality, personal meeting stories, or personal financial details) because AI cannot know a candidate's private personal facts. ALL questions MUST be strictly objective, factual, legal, procedural, or rule-based US immigration knowledge questions with ONE universally verifiable correct answer. If scenario questions are used, include all necessary scenario facts directly inside the question prompt text.
 
     Return ONLY a JSON object with this exact structure:
     {{
@@ -118,6 +119,7 @@ def generate_ai_interview(category: str, difficulty: str) -> dict:
     1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
     2. Randomize Option Positions: Ensure the correct response index ("correct_response_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct responses in indices 0 (A) or 1 (B).
     3. Conciseness: Keep hints, explanations, and examples concise (maximum 1-2 short sentences) to minimize generation latency.
+    4. Objectivity & Validity: DO NOT generate candidate-specific private personal questions (e.g., "What is your spouse's nationality?", "What is your spouse's date of birth?", "How did you meet your spouse?"). In a multiple-choice format, private personal questions have no fixed correct answer. Instead, generate evaluation questions testing knowledge of immigration policies, officer interview procedures, document verification requirements, red flags, eligibility criteria, or hypothetical scenario cases (providing full hypothetical details within the question). Every question MUST have an objectively correct answer.
 
     Return ONLY a JSON object with this exact structure:
     {{
