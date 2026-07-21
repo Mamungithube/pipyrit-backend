@@ -6,38 +6,38 @@ from openai import OpenAI
 import json
 import re
 
-# ── কনফিগারেশন ──────────────────────────────────────────────────────────────
+# ── Configuration ───────────────────────────────────────────────────────────
 API_KEY = environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=API_KEY)
 
-# মডেল অগ্রাধিকার তালিকা — প্রয়োজনে পরিবর্তন করুন
+# Model preference list — modify as needed
 MODEL_PREFERENCE = ["gpt-4o", "gpt-4o-mini", "gpt-4", "gpt-3.5-turbo"]
-DEFAULT_MODEL    = "gpt-4o-mini"   # fallback যদি discovery ব্যর্থ হয়
+DEFAULT_MODEL    = "gpt-4o-mini"   # Fallback model if discovery fails
 
 
-# ── মডেল নির্বাচন ────────────────────────────────────────────────────────────
+# ── Model Selection ─────────────────────────────────────────────────────────
 def get_working_model_name() -> str:
     """
-    অ্যাকাউন্টে সচল থাকা পছন্দের মডেলটি খুঁজে বের করবে।
-    Gemini-র list_models() র মতো — OpenAI models.list() দিয়ে করা হয়েছে।
+    Finds and returns an active preferred model from the available account models.
+    Implemented via OpenAI models.list().
     """
     try:
         available = {m.id for m in client.models.list().data}
         for preferred in MODEL_PREFERENCE:
             if preferred in available:
                 return preferred
-        # তালিকায় না থাকলে যেকোনো gpt মডেল নাও
+        # If no preferred model is available, pick any available gpt model
         gpt_models = [m for m in available if m.startswith("gpt-")]
         return sorted(gpt_models)[0] if gpt_models else DEFAULT_MODEL
     except Exception:
         return DEFAULT_MODEL
 
 
-# ── JSON পরিষ্কার ─────────────────────────────────────────────────────────────
+# ── Clean JSON ──────────────────────────────────────────────────────────────
 def clean_ai_json(raw_text: str) -> dict:
     """
-    AI রেসপন্স থেকে ময়লা পরিষ্কার করে শুধু JSON টুকু বের করা।
-    OpenAI মাঝেমাঝে ```json ব্লকে দেয়, মাঝেমাঝে সরাসরি — দুটোই হ্যান্ডেল করা হয়েছে।
+    Cleans raw AI response text to extract valid JSON data.
+    Handles both markdown-wrapped JSON (```json ... ```) and direct JSON strings.
     """
     try:
         if "```json" in raw_text:
@@ -46,40 +46,45 @@ def clean_ai_json(raw_text: str) -> dict:
             raw_text = raw_text.split("```")[1].split("```")[0].strip()
         return json.loads(raw_text)
     except json.JSONDecodeError:
-        # শেষ চেষ্টা: প্রথম { থেকে শেষ } পর্যন্ত কেটে নাও
+        # Fallback: extract substring between the first '{' and last '}'
         match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         if match:
             return json.loads(match.group())
         raise ValueError(f"AI returned invalid JSON. Raw snippet: {raw_text[:200]}")
 
 
-# ── ইন্টারনাল হেল্পার ────────────────────────────────────────────────────────
+# ── Internal Helpers ────────────────────────────────────────────────────────
 def _chat(prompt: str) -> str:
     """
-    OpenAI chat completion কল — Gemini-র generate_content()-এর সমতুল্য।
-    response_format=json_object দিলে OpenAI সবসময় valid JSON দেয়।
-    তবে তখন prompt-এ "JSON" শব্দ থাকা বাধ্যতামূলক।
+    Executes OpenAI chat completion request.
+    Uses response_format={"type": "json_object"} to guarantee valid JSON response.
+    Note: OpenAI requires the string "JSON" to be present in the prompt when using json_object mode.
     """
     model = get_working_model_name()
     response = client.chat.completions.create(
         model=model,
-        response_format={"type": "json_object"},   # JSON mode — সবচেয়ে নির্ভরযোগ্য
+        response_format={"type": "json_object"},   # JSON mode — most reliable
         messages=[
             {"role": "system", "content": "You are a helpful assistant. Always return valid JSON."},
             {"role": "user",   "content": prompt},
         ],
-        temperature=0.7,   # সামান্য ভ্যারিয়েশন রাখে; 0 দিলে একঘেঁয়ে হয়
-        max_tokens=4096,   # 25 প্রশ্নের জন্য যথেষ্ট; প্রয়োজনে বাড়ান
+        temperature=0.7,   # Introduce balanced variety in generated questions
+        max_tokens=4096,   # Sufficient capacity for 25 questions
     )
     return response.choices[0].message.content
 
 
-# ── পাবলিক ফাংশন ─────────────────────────────────────────────────────────────
+# ── Public Functions ────────────────────────────────────────────────────────
 def generate_ai_quiz(case_type: str) -> dict:
-    """specification অনুযায়ী ২৫টি কুইজ প্রশ্ন তৈরি করবে।"""
+    """Generates exactly 25 practice quiz questions for the given case type."""
     prompt = f"""
     Act as a senior US Immigration Attorney.
-    Generate a practice quiz (25 questions) for: {case_type}.
+    Generate a practice quiz for: {case_type}.
+
+    CRITICAL REQUIREMENTS:
+    1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
+    2. Randomize Option Positions: Ensure the correct answer index ("correct_answer_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct answers in indices 0 (A) or 1 (B).
+
     Return ONLY a JSON object with this exact structure:
     {{
       "question_set": [
@@ -95,15 +100,23 @@ def generate_ai_quiz(case_type: str) -> dict:
     Return ONLY JSON. No explanation outside the JSON.
     """
     raw = _chat(prompt)
-    return clean_ai_json(raw)
+    data = clean_ai_json(raw)
+    if isinstance(data.get("question_set"), list):
+        data["question_set"] = data["question_set"][:25]
+    return data
 
 
 def generate_ai_interview(category: str, difficulty: str) -> dict:
-    """ইন্টারভিউ ক্যাটাগরি এবং ডিফিকাল্টি অনুযায়ী প্রশ্ন তৈরি করবে।"""
+    """Generates mock interview questions based on category and difficulty."""
     prompt = f"""
     Act as a senior US Immigration Officer.
-    Generate a Mock Interview (25 questions) for category: {category}.
+    Generate a Mock Interview for category: {category}.
     Difficulty: {difficulty}.
+
+    CRITICAL REQUIREMENTS:
+    1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
+    2. Randomize Option Positions: Ensure the correct response index ("correct_response_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct responses in indices 0 (A) or 1 (B).
+
     Return ONLY a JSON object with this exact structure:
     {{
       "question_set": [
@@ -120,7 +133,10 @@ def generate_ai_interview(category: str, difficulty: str) -> dict:
     Return ONLY JSON. No explanation outside the JSON.
     """
     raw = _chat(prompt)
-    return clean_ai_json(raw)
+    data = clean_ai_json(raw)
+    if isinstance(data.get("question_set"), list):
+        data["question_set"] = data["question_set"][:25]
+    return data
 
 
 if __name__ == "__main__":

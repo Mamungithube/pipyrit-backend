@@ -24,8 +24,8 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-   path('', api_root, name='index'),          # api_root এ আগে থেকেই @basic_auth_required বসানো আছে
-   path('health/', health_check, name='health-check'),  # auth ছাড়া, monitoring tool এর জন্য
+   path('', api_root, name='index'),        
+   path('health/', health_check, name='health-check'),  
    path('admin/', admin.site.urls),
    path('api/users/', include('user.urls')),
    path('api/cases/', include('cases.urls')),
