@@ -10,8 +10,8 @@ import re
 API_KEY = environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=API_KEY)
 
-# Model preference list — modify as needed
-MODEL_PREFERENCE = ["gpt-4o", "gpt-4o-mini", "gpt-4", "gpt-3.5-turbo"]
+# Model preference list — prioritized gpt-4o-mini for maximum speed and cost efficiency
+MODEL_PREFERENCE = ["gpt-4o-mini", "gpt-4o", "gpt-4", "gpt-3.5-turbo"]
 DEFAULT_MODEL    = "gpt-4o-mini"   # Fallback model if discovery fails
 
 
@@ -68,7 +68,7 @@ def _chat(prompt: str) -> str:
             {"role": "system", "content": "You are a helpful assistant. Always return valid JSON."},
             {"role": "user",   "content": prompt},
         ],
-        temperature=0.7,   # Introduce balanced variety in generated questions
+        temperature=0.3,   # Lower temperature for faster, direct token generation
         max_tokens=4096,   # Sufficient capacity for 25 questions
     )
     return response.choices[0].message.content
@@ -84,6 +84,7 @@ def generate_ai_quiz(case_type: str) -> dict:
     CRITICAL REQUIREMENTS:
     1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
     2. Randomize Option Positions: Ensure the correct answer index ("correct_answer_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct answers in indices 0 (A) or 1 (B).
+    3. Conciseness: Keep hints and explanations concise (maximum 1-2 short sentences) to minimize generation latency.
 
     Return ONLY a JSON object with this exact structure:
     {{
@@ -116,6 +117,7 @@ def generate_ai_interview(category: str, difficulty: str) -> dict:
     CRITICAL REQUIREMENTS:
     1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
     2. Randomize Option Positions: Ensure the correct response index ("correct_response_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct responses in indices 0 (A) or 1 (B).
+    3. Conciseness: Keep hints, explanations, and examples concise (maximum 1-2 short sentences) to minimize generation latency.
 
     Return ONLY a JSON object with this exact structure:
     {{
