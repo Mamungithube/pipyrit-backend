@@ -1,8 +1,16 @@
 import email
 import time
+import threading
 from django.utils import timezone
 from django.conf import settings
 from django.core.mail import EmailMessage
+
+
+def _send_async_email(email_message):
+    try:
+        email_message.send()
+    except Exception:
+        pass
 from django.shortcuts import get_object_or_404
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -107,7 +115,7 @@ class RegisterApiView(generics.GenericAPIView):
                     settings.DEFAULT_FROM_EMAIL,
                     [user.email]
                 )
-                msg.send()
+                threading.Thread(target=_send_async_email, args=(msg,)).start()
             except Exception:
                 return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email}, status.HTTP_201_CREATED)
 
@@ -233,7 +241,7 @@ class ForgotPasswordView(generics.GenericAPIView):
                 settings.DEFAULT_FROM_EMAIL,
                 [email]
             )
-            msg.send()
+            threading.Thread(target=_send_async_email, args=(msg,)).start()
         except Exception:
             return api_response(False, "Failed to send email. Try again.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -662,7 +670,7 @@ class ResendOTPApiView(generics.GenericAPIView):
                 settings.DEFAULT_FROM_EMAIL,
                 [email]
             )
-            msg.send()
+            threading.Thread(target=_send_async_email, args=(msg,)).start()
         except Exception:
             return api_response(False, "Failed to send email. Try again later.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 

@@ -43,14 +43,24 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         case_type = request.query_params.get('case_type')
         try:
             ai_data = generate_ai_quiz(case_type)
-            questions = []
-            q_ids = []
-            for item in ai_data['question_set']:
-                q = QuizQuestion.objects.create(text=item['question'], hint=item['hint'], explanation=item['explanation'])
+            q_objects = [
+                QuizQuestion(
+                    text=item['question'],
+                    hint=item.get('hint', ''),
+                    explanation=item.get('explanation', '')
+                )
+                for item in ai_data['question_set']
+            ]
+            questions = QuizQuestion.objects.bulk_create(q_objects)
+            q_ids = [q.id for q in questions]
+
+            opt_objects = []
+            for q, item in zip(questions, ai_data['question_set']):
                 for idx, opt_text in enumerate(item['options']):
-                    QuizOption.objects.create(question=q, text=opt_text, is_correct=(idx == item['correct_answer_index']))
-                questions.append(q)
-                q_ids.append(q.id)
+                    opt_objects.append(
+                        QuizOption(question=q, text=opt_text, is_correct=(idx == item['correct_answer_index']))
+                    )
+            QuizOption.objects.bulk_create(opt_objects)
 
             result = UserQuizResult.objects.create(user=request.user, total_questions=len(questions), correct_answers=0, total_points_earned=0)
             result.questions.set(q_ids)
@@ -326,14 +336,28 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             ai_data = generate_ai_interview(category_name, level)
             cat_obj, _ = InterviewCategory.objects.get_or_create(name=category_name)
-            questions = []
-            q_ids = []
-            for item in ai_data['question_set']:
-                iq = InterviewQuestion.objects.create(category=cat_obj, text=item['question'], level=level, hint=item.get('hint', ''), explanation=item.get('explanation', ''), example=item.get('example', ''))
+
+            iq_objects = [
+                InterviewQuestion(
+                    category=cat_obj,
+                    text=item['question'],
+                    level=level,
+                    hint=item.get('hint', ''),
+                    explanation=item.get('explanation', ''),
+                    example=item.get('example', '')
+                )
+                for item in ai_data['question_set']
+            ]
+            questions = InterviewQuestion.objects.bulk_create(iq_objects)
+            q_ids = [iq.id for iq in questions]
+
+            opt_objects = []
+            for iq, item in zip(questions, ai_data['question_set']):
                 for idx, opt_text in enumerate(item['options']):
-                    InterviewOption.objects.create(question=iq, text=opt_text, is_correct=(idx == item['correct_response_index']))
-                questions.append(iq)
-                q_ids.append(iq.id)
+                    opt_objects.append(
+                        InterviewOption(question=iq, text=opt_text, is_correct=(idx == item['correct_response_index']))
+                    )
+            InterviewOption.objects.bulk_create(opt_objects)
 
             result = InterviewResult.objects.create(user=request.user, category=cat_obj, level=level, total_questions=len(questions), correct_answers=0, total_points_earned=0)
             result.questions.set(q_ids)

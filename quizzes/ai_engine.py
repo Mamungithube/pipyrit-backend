@@ -15,20 +15,28 @@ MODEL_PREFERENCE = ["gpt-4o-mini", "gpt-4o", "gpt-4", "gpt-3.5-turbo"]
 DEFAULT_MODEL    = "gpt-4o-mini"   # Fallback model if discovery fails
 
 
+_cached_working_model = None
+
+
 # ── Model Selection ─────────────────────────────────────────────────────────
 def get_working_model_name() -> str:
     """
     Finds and returns an active preferred model from the available account models.
-    Implemented via OpenAI models.list().
+    Caches the result in memory to eliminate unnecessary HTTP round-trips.
     """
+    global _cached_working_model
+    if _cached_working_model:
+        return _cached_working_model
+
     try:
         available = {m.id for m in client.models.list().data}
         for preferred in MODEL_PREFERENCE:
             if preferred in available:
-                return preferred
-        # If no preferred model is available, pick any available gpt model
+                _cached_working_model = preferred
+                return _cached_working_model
         gpt_models = [m for m in available if m.startswith("gpt-")]
-        return sorted(gpt_models)[0] if gpt_models else DEFAULT_MODEL
+        _cached_working_model = sorted(gpt_models)[0] if gpt_models else DEFAULT_MODEL
+        return _cached_working_model
     except Exception:
         return DEFAULT_MODEL
 

@@ -15,11 +15,17 @@ from pipyrit.root_auth import basic_auth_required
 def custom_serve_media(request, path):
     full_path = os.path.join(settings.MEDIA_ROOT, path)
     if os.path.exists(full_path):
-        return serve(request, path, document_root=settings.MEDIA_ROOT)
-    fallback_path = os.path.join(settings.BASE_DIR, path)
-    if os.path.exists(fallback_path):
-        return serve(request, path, document_root=settings.BASE_DIR)
-    return serve(request, path, document_root=settings.MEDIA_ROOT)
+        response = serve(request, path, document_root=settings.MEDIA_ROOT)
+    else:
+        fallback_path = os.path.join(settings.BASE_DIR, path)
+        if os.path.exists(fallback_path):
+            response = serve(request, path, document_root=settings.BASE_DIR)
+        else:
+            response = serve(request, path, document_root=settings.MEDIA_ROOT)
+
+    if response.status_code == 200:
+        response['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 
 schema_view = get_schema_view(

@@ -24,7 +24,7 @@ class CaseViewSet(viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return ImmigrationCase.objects.none()
             
-        return ImmigrationCase.objects.filter(user=self.request.user).order_by('-created_at')
+        return ImmigrationCase.objects.filter(user=self.request.user).select_related('case_type').prefetch_related('documents').order_by('-created_at')
 
     @swagger_auto_schema(tags=['3. Case Management'])
     def list(self, request, *args, **kwargs):
