@@ -62,21 +62,28 @@ def clean_ai_json(raw_text: str) -> dict:
 
 
 # ── Internal Helpers ────────────────────────────────────────────────────────
-def _chat(prompt: str) -> str:
+def _chat(prompt: str, system_prompt: str = None) -> str:
     """
     Executes OpenAI chat completion request.
     Uses response_format={"type": "json_object"} to guarantee valid JSON response.
     Note: OpenAI requires the string "JSON" to be present in the prompt when using json_object mode.
     """
     model = get_working_model_name()
+    if not system_prompt:
+        system_prompt = (
+            "You are an expert AI quiz generator. "
+            "Your STRICT, NON-NEGOTIABLE directive is to ALWAYS return valid JSON containing EXACTLY 25 question objects in the 'question_set' array. "
+            "Generating fewer or more than 25 questions is strictly forbidden."
+        )
+
     response = client.chat.completions.create(
         model=model,
         response_format={"type": "json_object"},   # JSON mode — most reliable
         messages=[
-            {"role": "system", "content": "You are a helpful assistant. Always return valid JSON."},
+            {"role": "system", "content": system_prompt},
             {"role": "user",   "content": prompt},
         ],
-        temperature=0.3,   # Lower temperature for faster, direct token generation
+        temperature=0.3,   # Lower temperature for direct token generation
         max_tokens=4096,   # Sufficient capacity for 25 questions
     )
     return response.choices[0].message.content
@@ -85,32 +92,43 @@ def _chat(prompt: str) -> str:
 # ── Public Functions ────────────────────────────────────────────────────────
 def generate_ai_quiz(case_type: str) -> dict:
     """Generates exactly 25 practice quiz questions for the given case type."""
+    system_prompt = (
+        "You are a specialized US Immigration legal quiz engine. "
+        "STRICT MANDATE: You MUST output valid JSON with EXACTLY 25 questions in the 'question_set' array. "
+        "Never output fewer than 25 items."
+    )
     prompt = f"""
     Act as a senior US Immigration Attorney.
     Generate a practice quiz for: {case_type}.
 
-    CRITICAL REQUIREMENTS:
-    1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
-    2. Randomize Option Positions: Ensure the correct answer index ("correct_answer_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct answers in indices 0 (A) or 1 (B).
-    3. Conciseness: Keep hints and explanations concise (maximum 1-2 short sentences) to minimize generation latency.
-    4. Objectivity & Validity: NEVER generate personal, candidate-specific, or subjective questions asking for private details (such as spouse's birthdate, spouse's nationality, personal meeting stories, or personal financial details) because AI cannot know a candidate's private personal facts. ALL questions MUST be strictly objective, factual, legal, procedural, or rule-based US immigration knowledge questions with ONE universally verifiable correct answer. If scenario questions are used, include all necessary scenario facts directly inside the question prompt text.
+    STRICT MANDATORY CONSTRAINTS:
+    1. EXACT COUNT REQUIREMENT: You MUST generate EXACTLY 25 distinct questions in the "question_set" array (numbered 1 through 25). Generating 24, 23, or any number other than 25 is CRITICAL SYSTEM FAILURE. Verify the count before outputting.
+    2. Randomize Option Positions: Ensure the correct answer index ("correct_answer_index") is randomly and evenly distributed across 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT concentrate correct answers in index 0 (A) or 1 (B).
+    3. Conciseness: Keep hints and explanations concise (maximum 1 short sentence each) to guarantee token efficiency.
+    4. Objectivity & Validity: NEVER generate personal, candidate-specific, or subjective questions asking for private details. ALL questions MUST be strictly objective, factual, legal, procedural, or rule-based US immigration knowledge questions with ONE universally verifiable correct answer.
 
     Return ONLY a JSON object with this exact structure:
     {{
       "question_set": [
         {{
-          "question": "text",
-          "options": ["a", "b", "c", "d"],
+          "question": "Question 1 text",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
           "correct_answer_index": 0,
-          "hint": "clue",
-          "explanation": "why"
+          "hint": "Short clue",
+          "explanation": "Short explanation"
         }}
       ]
     }}
     Return ONLY JSON. No explanation outside the JSON.
     """
-    raw = _chat(prompt)
-    data = clean_ai_json(raw)
+    for attempt in range(2):
+        raw = _chat(prompt, system_prompt=system_prompt)
+        data = clean_ai_json(raw)
+        q_set = data.get("question_set")
+        if isinstance(q_set, list) and len(q_set) >= 25:
+            data["question_set"] = q_set[:25]
+            return data
+
     if isinstance(data.get("question_set"), list):
         data["question_set"] = data["question_set"][:25]
     return data
@@ -118,34 +136,45 @@ def generate_ai_quiz(case_type: str) -> dict:
 
 def generate_ai_interview(category: str, difficulty: str) -> dict:
     """Generates mock interview questions based on category and difficulty."""
+    system_prompt = (
+        "You are a senior US Immigration Officer mock interview engine. "
+        "STRICT MANDATE: You MUST output valid JSON with EXACTLY 25 questions in the 'question_set' array. "
+        "Never output fewer than 25 items."
+    )
     prompt = f"""
     Act as a senior US Immigration Officer.
     Generate a Mock Interview for category: {category}.
     Difficulty: {difficulty}.
 
-    CRITICAL REQUIREMENTS:
-    1. Quantity: Generate EXACTLY 25 questions in the "question_set" array. Do NOT generate more or less than 25 questions.
-    2. Randomize Option Positions: Ensure the correct response index ("correct_response_index") is randomly and evenly distributed among options 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT favor or concentrate correct responses in indices 0 (A) or 1 (B).
-    3. Conciseness: Keep hints, explanations, and examples concise (maximum 1-2 short sentences) to minimize generation latency.
-    4. Objectivity & Validity: DO NOT generate candidate-specific private personal questions (e.g., "What is your spouse's nationality?", "What is your spouse's date of birth?", "How did you meet your spouse?"). In a multiple-choice format, private personal questions have no fixed correct answer. Instead, generate evaluation questions testing knowledge of immigration policies, officer interview procedures, document verification requirements, red flags, eligibility criteria, or hypothetical scenario cases (providing full hypothetical details within the question). Every question MUST have an objectively correct answer.
+    STRICT MANDATORY CONSTRAINTS:
+    1. EXACT COUNT REQUIREMENT: You MUST generate EXACTLY 25 distinct questions in the "question_set" array (numbered 1 through 25). Generating 24, 23, or any number other than 25 is CRITICAL SYSTEM FAILURE. Verify the count before outputting.
+    2. Randomize Option Positions: Ensure the correct response index ("correct_response_index") is randomly and evenly distributed across 0, 1, 2, and 3 (corresponding to A, B, C, D). Do NOT concentrate correct answers in index 0 (A) or 1 (B).
+    3. Conciseness: Keep hints, explanations, and sample answer examples concise (maximum 1 short sentence each) to guarantee token efficiency.
+    4. Objectivity & Validity: DO NOT generate candidate-specific private personal questions. Instead, generate evaluation questions testing knowledge of immigration policies, officer interview procedures, document verification requirements, red flags, eligibility criteria, or hypothetical scenario cases (providing full hypothetical details within the question).
 
     Return ONLY a JSON object with this exact structure:
     {{
       "question_set": [
         {{
-          "question": "text",
-          "options": ["a", "b", "c", "d"],
+          "question": "Question 1 text",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
           "correct_response_index": 0,
-          "hint": "clue",
-          "explanation": "why",
-          "example": "sample answer"
+          "hint": "Short clue",
+          "explanation": "Short explanation",
+          "example": "Sample response"
         }}
       ]
     }}
     Return ONLY JSON. No explanation outside the JSON.
     """
-    raw = _chat(prompt)
-    data = clean_ai_json(raw)
+    for attempt in range(2):
+        raw = _chat(prompt, system_prompt=system_prompt)
+        data = clean_ai_json(raw)
+        q_set = data.get("question_set")
+        if isinstance(q_set, list) and len(q_set) >= 25:
+            data["question_set"] = q_set[:25]
+            return data
+
     if isinstance(data.get("question_set"), list):
         data["question_set"] = data["question_set"][:25]
     return data
