@@ -15,6 +15,8 @@ MODEL_PREFERENCE = ["gpt-4o-mini", "gpt-4o", "gpt-4", "gpt-3.5-turbo"]
 DEFAULT_MODEL    = "gpt-4o-mini"   # Fallback model if discovery fails
 
 
+# In-memory cache: প্রতিটি Gunicorn/uWSGI worker process এ আলাদাভাবে সংরক্ষিত হয়।
+# এটি intended behavior — প্রতিটি worker নিজের জন্য একবার model discovery করে।
 _cached_working_model = None
 
 

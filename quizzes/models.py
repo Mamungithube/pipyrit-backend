@@ -1,18 +1,12 @@
-
 from io import BytesIO
-from time import time
 
-from django.db import models
-from django.conf import settings
-import os
-from gtts import gTTS
 from django.db import models
 from django.conf import settings
 from django.core.files.base import ContentFile
+from gtts import gTTS
 
 # Create your models here.
 
-# অডিও জেনারেট করার জন্য একটি হেল্পার ফাংশন
 def generate_tts_audio(text, lang='en'):
     tts = gTTS(text=text, lang=lang)
     audio_buffer = BytesIO()
@@ -29,11 +23,9 @@ class QuizQuestion(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # যদি প্রশ্ন নতুন হয় এবং টেক্সট থাকে, তবেই অডিও জেনারেট হবে
         if not self.audio_file and self.text:
-            from django.utils import timezone # লোকাল ইম্পোর্ট সেফটি
+            from django.utils import timezone
             audio_content = generate_tts_audio(self.text)
-            # time.time() এর বদলে timezone.now().timestamp() ব্যবহার করা হয়েছে
             timestamp = int(timezone.now().timestamp())
             self.audio_file.save(f"quiz_{timestamp}.mp3", audio_content, save=False)
         super().save(*args, **kwargs)

@@ -36,7 +36,7 @@ def get_env_list(var_name, default=""):
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-0+)i*4m-5b853qep522e2w_a@t!ls62wdfldq%l*$^rb&r(jgt'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-change-in-production')
 
 ALLOWED_HOSTS = get_env_list('ALLOWED_HOSTS', '')
 CORS_ALLOWED_ORIGINS = get_env_list('CORS_ALLOWED_ORIGINS')
@@ -132,7 +132,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': False,
@@ -291,5 +291,5 @@ STRIPE_WEBHOOK_SECRET=os.getenv('STRIPE_WEBHOOK_SECRET')
 SITE_URL=os.getenv('SITE_URL')
 
 
-DOCS_USERNAME = os.environ.get('DOCS_USERNAME', 'docsuser')
-DOCS_PASSWORD = os.environ.get('DOCS_PASSWORD', 'changeme')
+DOCS_USERNAME = os.environ.get('DOCS_USERNAME')
+DOCS_PASSWORD = os.environ.get('DOCS_PASSWORD')
