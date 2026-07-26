@@ -1,47 +1,34 @@
-import email
 import time
-import threading
-from django.utils import timezone
-from django.conf import settings
-from django.core.mail import EmailMessage
+import math
+from datetime import timedelta
 
-
-def _send_async_email(email_message):
-    try:
-        email_message.send()
-    except Exception:
-        pass
+from django.db.models import Count, Sum
+from django.db.models.functions import ExtractMonth
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, status
+
+from rest_framework import generics, viewsets, status, filters
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from datetime import timedelta
 
 from payment.models import Transaction
 
-from .models import User, Profile
-from .serializers import RegistrationSerializer, LoginSerializer, VerifyOTPSerializer, UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer, SetNewPasswordSerializer, ProfileSerializer, ChangePasswordSerializer
-from .utils import generate_otp
-from drf_yasg.utils import swagger_auto_schema
-
-from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser
-from django.db.models import Count, Sum
-from django.db.models.functions import ExtractMonth
-from .serializers import AdminUserManagementSerializer
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-
-from .models import Notification, DeviceToken
-from .serializers import NotificationSerializer, DeviceTokenSerializer
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.response import Response
-import time
-import math
+from .models import User, Profile, Notification, DeviceToken
+from .serializers import (
+    RegistrationSerializer, LoginSerializer, VerifyOTPSerializer,
+    UserSerializer, ForgotPasswordSerializer, ForgotPasswordVerifySerializer,
+    SetNewPasswordSerializer, ProfileSerializer, ChangePasswordSerializer,
+    AdminUserManagementSerializer, NotificationSerializer, DeviceTokenSerializer,
+)
+from .services import create_and_save_otp, send_verification_email, send_password_reset_email
 
 
 class CustomPagination(PageNumberPagination):
@@ -102,20 +89,10 @@ class RegisterApiView(generics.GenericAPIView):
             user.is_active = False
             user.save()
 
-            profile, created = Profile.objects.get_or_create(user=user)
-            otp_code = generate_otp()
-            profile.otp = otp_code
-            profile.otp_created_at = timezone.now()
-            profile.save()
+            otp_code = create_and_save_otp(user)
 
             try:
-                msg = EmailMessage(
-                    'Verify your email - Pipyrit',
-                    f'Your verification code is: {otp_code}. It will expire in 5 minutes.',
-                    settings.DEFAULT_FROM_EMAIL,
-                    [user.email]
-                )
-                threading.Thread(target=_send_async_email, args=(msg,)).start()
+                send_verification_email(user.email, otp_code)
             except Exception:
                 return api_response(True, "Registration success, but failed to send email. Please resend OTP.", {"email": user.email}, status.HTTP_201_CREATED)
 
@@ -225,23 +202,12 @@ class ForgotPasswordView(generics.GenericAPIView):
         if not user:
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
 
-        otp_code = generate_otp()
-        profile, _ = Profile.objects.get_or_create(user=user)
-        profile.otp = otp_code
-        profile.otp_created_at = timezone.now()
-        profile.save()
-
-        expires_at = (profile.otp_created_at +
-                      timedelta(minutes=5)).isoformat()
+        otp_code = create_and_save_otp(user)
+        profile = user.profile
+        expires_at = (profile.otp_created_at + timedelta(minutes=5)).isoformat()
 
         try:
-            msg = EmailMessage(
-                'Reset your password - Pipyrit',
-                f'Your password reset code is: {otp_code}. Valid for 5 minutes.',
-                settings.DEFAULT_FROM_EMAIL,
-                [email]
-            )
-            threading.Thread(target=_send_async_email, args=(msg,)).start()
+            send_password_reset_email(email, otp_code)
         except Exception:
             return api_response(False, "Failed to send email. Try again.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -656,21 +622,11 @@ class ResendOTPApiView(generics.GenericAPIView):
         if not user:
             return api_response(False, "No account found with this email.", None, status.HTTP_404_NOT_FOUND)
 
-        otp_code = generate_otp()
-        profile, _ = Profile.objects.get_or_create(user=user)
-        profile.otp = otp_code
-        profile.otp_created_at = timezone.now()
-        profile.save()
+        otp_code = create_and_save_otp(user)
+        profile = user.profile
 
-        # ইমেইল পাঠানো
         try:
-            msg = EmailMessage(
-                'Resend Verification Code - Pipyrit',
-                f'Your new verification code is: {otp_code}. Valid for 5 minutes.',
-                settings.DEFAULT_FROM_EMAIL,
-                [email]
-            )
-            threading.Thread(target=_send_async_email, args=(msg,)).start()
+            send_verification_email(email, otp_code)
         except Exception:
             return api_response(False, "Failed to send email. Try again later.", None, status.HTTP_500_INTERNAL_SERVER_ERROR)
 

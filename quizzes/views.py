@@ -1,30 +1,33 @@
-import profile
 import time
 
-from .serializers import (
-    InterviewCategorySerializer, InterviewQuestionSerializer,
-    InterviewResultSerializer
-)
-from .models import InterviewCategory, InterviewQuestion, InterviewOption, InterviewResult
-from rest_framework import request, viewsets, status, generics
-import random
-from rest_framework.response import Response
-from rest_framework import viewsets, status
+from django.utils.translation import gettext_lazy as _
+
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+
+from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-from .models import QuizQuestion, QuizOption, UserQuizResult
-from .serializers import QuizQuestionSerializer, UserQuizResultSerializer
-from user.views import api_response
-from user.views import CustomPagination
-from django.utils.translation import gettext_lazy as _
-from .ai_engine import generate_ai_quiz, generate_ai_interview
-from drf_yasg import openapi
+from rest_framework.response import Response
 
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
-from django.db.models import Avg
+from user.views import api_response, CustomPagination
+
+from .ai_engine import generate_ai_quiz, generate_ai_interview
+from .models import (
+    InterviewCategory, InterviewQuestion, InterviewOption, InterviewResult,
+    QuizQuestion, QuizOption, UserQuizResult,
+)
+from .serializers import (
+    InterviewCategorySerializer, InterviewQuestionSerializer, InterviewResultSerializer,
+    QuizQuestionSerializer, UserQuizResultSerializer,
+)
+from .services import (
+    submit_quiz as quiz_service_submit,
+    save_quiz_score,
+    submit_interview as interview_service_submit,
+    save_interview_score,
+)
+
 """------------------------------ Quiz Views -----------------------------"""
 
 
@@ -103,47 +106,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
         user_answers = request.data.get('answers', [])
         if not user_answers:
             return api_response(False, _("No answers provided"), None, status.HTTP_400_BAD_REQUEST)
-
-        total_earned_points = 0
-        correct_answers_count = 0
-        total_questions = len(user_answers)
-
-        for item in user_answers:
-            q_id = item.get('question_id')
-            o_id = item.get('option_id')
-
-            try:
-                question = QuizQuestion.objects.get(id=q_id)
-                selected_option = QuizOption.objects.get(
-                    id=o_id, question=question)
-
-                if selected_option.is_correct:
-                    correct_answers_count += 1
-                    total_earned_points += question.points 
-            except (QuizQuestion.DoesNotExist, QuizOption.DoesNotExist):
-                continue
-
-        result = UserQuizResult.objects.create(
-            user=request.user,
-            total_questions=total_questions,
-            correct_answers=correct_answers_count,
-            total_points_earned=total_earned_points
-        )
-
-        q_ids = [item.get('question_id') for item in user_answers]
-        result.questions.set(q_ids)
-
-        profile = request.user.profile
-        profile.total_points += total_earned_points
-        profile.save()
-
-        data = {
-            "correct_answers": correct_answers_count,
-            "total_questions": total_questions,
-            "points_earned": total_earned_points,
-            "total_profile_points": profile.total_points
-        }
-
+        data = quiz_service_submit(request.user, user_answers)
         return api_response(True, _("Quiz submitted and points calculated"), data)
 
     @swagger_auto_schema(
@@ -162,39 +125,7 @@ class AppQuizViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=['post'], url_path='save-score')
     def save_score(self, request):
-        res_id = request.data.get('result_id')
-        correct = request.data.get('correct_answers', 0)
-        total = request.data.get('total_questions', 25)
-        points = request.data.get('earned_points', 0)
-        confidence = request.data.get('confidence_level', 0)
-
-        result = get_object_or_404(UserQuizResult, id=res_id, user=request.user)
-
-        old_points = result.total_points_earned
-        result.correct_answers = correct
-        result.total_questions = total
-        result.total_points_earned = points
-        result.confidence_level = confidence
-        result.save()
-
-        profile = request.user.profile
-        profile.total_points += (points - old_points)
-
-        quiz_avg = UserQuizResult.objects.filter(
-            user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        interview_avg = InterviewResult.objects.filter(
-            user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
-        interview_count = InterviewResult.objects.filter(user=request.user).count()
-
-        total_count = quiz_count + interview_count
-        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
-
-        profile.confidence_level = min(round(combined_avg), 100)
-        profile.save()
-
+        result = save_quiz_score(request.user, request.data.get('result_id'), request.data)
         return api_response(True, "Quiz score saved successfully", {"id": result.id})
 
     @swagger_auto_schema(tags=['4. Quiz - App'])
@@ -401,60 +332,12 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=['post'], url_path='submit')
     def submit_interview(self, request):
-        category_id = request.data.get('category_id')
-        level = request.data.get('level')
-        user_answers = request.data.get('answers', [])
-
-        total_earned_points = 0
-        correct_answers_count = 0
-        q_ids = []
-
-        for item in user_answers:
-            q_id = item.get('question_id')
-            o_id = item.get('option_id')
-            q_ids.append(q_id)
-            try:
-                question = InterviewQuestion.objects.get(id=q_id)
-                selected_option = InterviewOption.objects.get(
-                    id=o_id, question=question)
-                if selected_option.is_correct:
-                    correct_answers_count += 1
-                    total_earned_points += question.points
-            except:
-                continue
-
-        total_qs = len(user_answers) if len(user_answers) > 0 else 1
-        confidence = int((correct_answers_count / total_qs) * 100)
-
-        result = InterviewResult.objects.create(
+        result = interview_service_submit(
             user=request.user,
-            category_id=category_id,
-            level=level,
-            total_questions=len(user_answers),
-            correct_answers=correct_answers_count,
-            total_points_earned=total_earned_points,
-            confidence_level=confidence
+            user_answers=request.data.get('answers', []),
+            category_id=request.data.get('category_id'),
+            level=request.data.get('level'),
         )
-        result.questions.set(q_ids)
-
-        profile = request.user.profile
-        profile.total_points += total_earned_points
-
-        quiz_avg = UserQuizResult.objects.filter(
-            user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        interview_avg = InterviewResult.objects.filter(
-            user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
-        interview_count = InterviewResult.objects.filter(user=request.user).count()
-
-        total_count = quiz_count + interview_count
-        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
-
-        profile.confidence_level = min(round(combined_avg), 100)
-        profile.save()
-
         return api_response(True, _("Interview submitted"), InterviewResultSerializer(result).data)
     
     @swagger_auto_schema(
@@ -473,38 +356,7 @@ class AppInterviewViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=['post'], url_path='save-score')
     def save_score(self, request):
-        res_id = request.data.get('result_id')
-        correct = request.data.get('correct_answers', 0)
-        total = request.data.get('total_questions', 25)
-        points = request.data.get('earned_points', 0)
-        confidence = request.data.get('confidence_level', 0)
-
-        result = get_object_or_404(InterviewResult, id=res_id, user=request.user)
-        
-        old_points = result.total_points_earned
-        result.correct_answers = correct
-        result.total_questions = total
-        result.total_points_earned = points
-        result.confidence_level = confidence
-        result.save()
-
-        profile = request.user.profile
-        profile.total_points += (points - old_points)
-        quiz_avg = UserQuizResult.objects.filter(
-        user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        interview_avg = InterviewResult.objects.filter(
-            user=request.user
-        ).aggregate(avg=Avg('confidence_level'))['avg'] or 0
-        quiz_count = UserQuizResult.objects.filter(user=request.user).count()
-        interview_count = InterviewResult.objects.filter(user=request.user).count()
-
-        total_count = quiz_count + interview_count
-        combined_avg = ((quiz_avg * quiz_count) + (interview_avg * interview_count)) / total_count if total_count else 0
-
-        profile.confidence_level = min(round(combined_avg), 100)
-        profile.save()
-
+        result = save_interview_score(request.user, request.data.get('result_id'), request.data)
         return api_response(True, "Interview score saved successfully", {"id": result.id})
 
 
